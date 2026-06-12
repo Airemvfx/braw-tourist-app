@@ -95,9 +95,9 @@ export const POIS = [
 
   // ---- Borders & the South ----
   { id: 'melrose-abbey', name: 'Melrose Abbey', region: 'Scottish Borders', lat: 55.599, lon: -2.718, tags: ['history', 'ancient', 'mystery'], xp: 35, pop: 5, icon: '🕍', time: '1.5 hrs', blurb: 'Rose-pink ruins holding the buried heart of Robert the Bruce. Find the bagpiping pig gargoyle.' },
-  { id: 'grey-mares-tail', name: 'Grey Mare’s Tail', region: 'Dumfries & Galloway', lat: 55.425, lon: -3.292, tags: ['waterfall', 'hiking', 'nature'], xp: 30, pop: 5, icon: '🐎', time: '2 hrs', blurb: 'A 60m white plume in the Moffat hills, with wild goats and peregrines for company.' },
-  { id: 'caerlaverock', name: 'Caerlaverock Castle', region: 'Dumfries & Galloway', lat: 54.9755, lon: -3.525, tags: ['castle', 'history', 'wildlife'], xp: 35, pop: 5, icon: '🔺', time: '1.5 hrs', blurb: 'Scotland’s only triangular castle, moat and all, beside goose-filled salt marshes.' },
-  { id: ‘galloway-dark-sky’, name: ‘Galloway Dark Sky Park’, region: ‘Dumfries & Galloway’, lat: 55.079, lon: -4.448, tags: [‘stargazing’, ‘nature’, ‘forest’, ‘wildlife’], xp: 40, pop: 5, icon: ‘🌌’, time: ‘evening’, blurb: ‘The UK’s first Dark Sky Park — 7,000 stars and the Milky Way on a clear night.’ },
+  { id: 'grey-mares-tail', name: "Grey Mare’s Tail", region: 'Dumfries & Galloway', lat: 55.425, lon: -3.292, tags: ['waterfall', 'hiking', 'nature'], xp: 30, pop: 5, icon: '🐎', time: '2 hrs', blurb: 'A 60m white plume in the Moffat hills, with wild goats and peregrines for company.' },
+  { id: 'caerlaverock', name: 'Caerlaverock Castle', region: 'Dumfries & Galloway', lat: 54.9755, lon: -3.525, tags: ['castle', 'history', 'wildlife'], xp: 35, pop: 5, icon: '🔺', time: '1.5 hrs', blurb: "Scotland’s only triangular castle, moat and all, beside goose-filled salt marshes." },
+  { id: ‘galloway-dark-sky’, name: ‘Galloway Dark Sky Park’, region: ‘Dumfries & Galloway’, lat: 55.079, lon: -4.448, tags: [‘stargazing’, ‘nature’, ‘forest’, ‘wildlife’], xp: 40, pop: 5, icon: ‘🌌’, time: ‘evening’, blurb: "The UK’s first Dark Sky Park — 7,000 stars and the Milky Way on a clear night." },
 
   // ---- Kayaking & Water Sports ----
   { id: ‘river-spey-kayak’, name: ‘River Spey Kayak Run’, region: ‘Speyside & Moray’, lat: 57.328, lon: -3.578, tags: [‘kayaking’, ‘watersports’, ‘nature’, ‘river’], xp: 45, pop: 7, icon: ‘🛶’, time: ‘half day’, blurb: ‘One of Scotland\’s finest touring rivers — 80 miles of Grade I–III rapids through whisky country.’ },
