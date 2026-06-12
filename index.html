@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BRAW — Scottish Roadtrip Quests</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏴󠁧󠁢󠁳󠁣󠁴󠁿</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garant:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Outfit:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- ================= AUTH SCREEN ================= -->
+  <div id="auth-screen" hidden>
+    <div class="auth-split">
+      <aside class="auth-brand">
+        <div class="brand-inner">
+          <div class="brand-eyebrow">Scotland · Est. Adventure</div>
+          <div class="wordmark">BRAW<span class="wordmark-dot">.</span></div>
+          <p class="brand-tag">Your personal Scottish expedition, <strong>intelligently charted</strong>.</p>
+          <ul class="brand-feats">
+            <li>
+              <span class="feat-icon">🧭</span>
+              <span>Describe any interest — kayaking, castles, whisky — and get a <strong>personalised route</strong> across Scotland.</span>
+            </li>
+            <li>
+              <span class="feat-icon">📍</span>
+              <span>Live GPS tracking detects when you <strong>arrive at each location</strong> and prompts you to log it.</span>
+            </li>
+            <li>
+              <span class="feat-icon">🏅</span>
+              <span>Earn XP and unlock <strong>achievements</strong> as you explore every region.</span>
+            </li>
+            <li>
+              <span class="feat-icon">🏆</span>
+              <span>Compare progress with other explorers on the <strong>live leaderboard</strong>.</span>
+            </li>
+          </ul>
+          <div class="brand-divider"></div>
+          <div class="brand-foot">Prototype · Scotland only · GPS &amp; geofencing included · No data leaves your device</div>
+        </div>
+      </aside>
+
+      <main class="auth-panel">
+        <div class="auth-card card">
+          <div class="auth-card-head">
+            <h2>Welcome back</h2>
+            <p>Sign in to continue your Scottish adventure.</p>
+          </div>
+          <div class="auth-tabs">
+            <button class="auth-tab active" data-mode="login">Sign in</button>
+            <button class="auth-tab" data-mode="register">Create account</button>
+          </div>
+          <form id="auth-form" data-mode="login">
+            <label class="field">
+              <span>Explorer name</span>
+              <input id="auth-name" type="text" autocomplete="username" placeholder="e.g. BonnieVoyager" required>
+            </label>
+            <label class="field">
+              <span>Password</span>
+              <input id="auth-pass" type="password" autocomplete="current-password" placeholder="••••••••" required>
+            </label>
+            <div id="auth-error" class="auth-error" role="alert"></div>
+            <button id="auth-submit" class="btn btn-primary btn-block" type="submit">Sign in</button>
+          </form>
+          <div class="auth-divider"><span>or</span></div>
+          <button id="demo-btn" class="btn btn-ghost btn-block">Try the demo account</button>
+          <p class="auth-note">Accounts are stored locally in your browser. No data leaves this device.</p>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- ================= APP SCREEN ================= -->
+  <div id="app-screen" hidden>
+    <header class="app-header">
+      <div class="hdr-brand">
+        <span class="hdr-logo">BRAW<span class="wordmark-dot">.</span></span>
+        <span class="hdr-scope">SCOTLAND</span>
+      </div>
+      <nav class="hdr-nav">
+        <button class="nav-btn" data-view="plan">New Quest</button>
+        <button class="nav-btn" data-view="trips">My Quests</button>
+        <button class="nav-btn" data-view="badges">Achievements</button>
+        <button class="nav-btn" data-view="leaderboard">Leaderboard</button>
+        <button class="nav-btn" data-view="profile">Profile</button>
+      </nav>
+      <div class="hdr-right">
+        <div class="hdr-xp-wrap">
+          <div class="hdr-xp-top">
+            <span id="hdr-level" class="lvl-chip">LVL 1</span>
+            <span id="hdr-title">Wanderer</span>
+          </div>
+          <div class="xp-bar"><div id="hdr-xp-fill" class="xp-fill"></div></div>
+          <div id="hdr-xp-label">0 / 150 XP</div>
+        </div>
+        <div class="hdr-user">
+          <div id="hdr-avatar" class="avatar">?</div>
+          <span id="hdr-name" class="hdr-uname">—</span>
+        </div>
+        <button id="logout-btn" class="icon-btn" title="Sign out">⎋</button>
+      </div>
+    </header>
+    <div class="scope-banner" aria-hidden="true"></div>
+
+    <main class="app-main">
+
+      <!-- New quest -->
+      <section id="view-plan" hidden>
+        <div class="view-head">
+          <h1 class="view-title">Where shall we <em>explore</em>?</h1>
+          <p class="view-sub">Tell us your interests — a single sentence is enough. We'll build a personalised Scottish itinerary with real GPS tracking.</p>
+        </div>
+        <div class="plan-box card">
+          <textarea id="plan-input" rows="3" placeholder="e.g. I'm really into kayaking and wild swimming… or 5 days of highland castles from Inverness…"></textarea>
+          <div class="plan-actions">
+            <span class="plan-hint">⌘ / Ctrl + Enter to generate</span>
+            <button id="plan-go" class="btn btn-primary">Generate itinerary →</button>
+          </div>
+        </div>
+        <div class="chips-label">Try an example</div>
+        <div id="example-chips" class="chips-row"></div>
+        <div id="plan-thinking" class="thinking card" hidden></div>
+        <div id="plan-result" hidden></div>
+      </section>
+
+      <!-- Trip list -->
+      <section id="view-trips" hidden>
+        <div class="view-head">
+          <h1 class="view-title">My <em>Quests</em></h1>
+          <p class="view-sub">Your saved itineraries. Open one to track your progress and enable live GPS.</p>
+        </div>
+        <div id="trips-list" class="trips-grid"></div>
+      </section>
+
+      <!-- Trip detail -->
+      <section id="view-trip" hidden>
+        <div id="trip-detail"></div>
+      </section>
+
+      <!-- Achievements -->
+      <section id="view-badges" hidden>
+        <div class="view-head">
+          <h1 class="view-title">Achievements</h1>
+        </div>
+        <div class="badges-count-bar">
+          <span class="badges-count-label" id="badges-count-label"></span>
+          <div class="progress md badges-progress"><div class="progress-fill" id="badges-progress-fill"></div></div>
+        </div>
+        <div id="badges-grid" class="badges-grid"></div>
+      </section>
+
+      <!-- Leaderboard -->
+      <section id="view-leaderboard" hidden>
+        <div class="view-head">
+          <h1 class="view-title">Leaderboard</h1>
+          <p class="view-sub" id="leaderboard-note"></p>
+        </div>
+        <div id="leaderboard-table" class="card lb-card"></div>
+      </section>
+
+      <!-- Profile -->
+      <section id="view-profile" hidden>
+        <div id="profile-card"></div>
+      </section>
+
+    </main>
+
+    <!-- Geofence arrival prompt -->
+    <div class="geo-prompt" id="geo-prompt" aria-live="polite">
+      <div class="geo-icon" id="geo-icon">📍</div>
+      <div class="geo-body">
+        <span class="geo-kicker">You've arrived</span>
+        <div class="geo-poi-name" id="geo-poi-name">Location name</div>
+        <div class="geo-meta" id="geo-meta"></div>
+      </div>
+      <div class="geo-actions">
+        <button class="btn btn-primary btn-sm" id="geo-confirm">Mark visited</button>
+        <button class="btn btn-ghost btn-sm" id="geo-dismiss">Not yet</button>
+      </div>
+    </div>
+
+    <footer class="app-foot">BRAW · Scotland, UK · GPS &amp; geofencing · mair lands coming soon · progress stored locally</footer>
+  </div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
