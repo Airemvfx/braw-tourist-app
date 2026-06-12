@@ -131,16 +131,16 @@ export function renderMap(stops = [], start = null, userPos = null, opts = {}) {
   <svg class="scotmap" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Map of Scotland with roadtrip stops">
     <defs>
       <radialGradient id="seaGlow" cx="30%" cy="20%" r="90%">
-        <stop offset="0%" stop-color="rgba(62,224,143,0.07)"/>
-        <stop offset="55%" stop-color="rgba(96,76,160,0.05)"/>
+        <stop offset="0%" stop-color="rgba(201,138,64,0.05)"/>
+        <stop offset="55%" stop-color="rgba(79,158,122,0.03)"/>
         <stop offset="100%" stop-color="rgba(0,0,0,0)"/>
       </radialGradient>
       <linearGradient id="landFill" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0%" stop-color="#1d2f25"/>
-        <stop offset="100%" stop-color="#16241d"/>
+        <stop offset="0%" stop-color="#1a2535"/>
+        <stop offset="100%" stop-color="#131d2a"/>
       </linearGradient>
       <filter id="markerGlow" x="-80%" y="-80%" width="260%" height="260%">
-        <feGaussianBlur stdDeviation="3.2" result="b"/>
+        <feGaussianBlur stdDeviation="2.8" result="b"/>
         <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
       </filter>
     </defs>
@@ -167,5 +167,6 @@ export function renderMap(stops = [], start = null, userPos = null, opts = {}) {
     ${routePts.length > 1 ? `<path class="map-route" d="${routeD}" fill="none"/>` : ''}
     ${startMarker}
     <g filter="url(#markerGlow)">${markers}</g>
+    ${userDot}
   </svg>`;
 }
