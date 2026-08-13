@@ -354,7 +354,12 @@ small { font-size: 0.78em; }
 }
 
 .hdr-nav {
-  display: flex; gap: 0.15rem; flex: 1; justify-content: center;
+  display: flex; gap: 0.15rem; flex: 1;
+  justify-content: center;
+  /* `safe` keeps the row centred while it fits, but falls back to
+     flex-start once it overflows. Plain `center` pushes the overflow out
+     of BOTH edges, and the left-hand part can never be scrolled back to. */
+  justify-content: safe center;
 }
 .nav-btn {
   border: 1px solid transparent; background: transparent;
@@ -362,6 +367,7 @@ small { font-size: 0.78em; }
   font-weight: 500; font-size: 0.875rem;
   padding: 0.45rem 0.9rem; border-radius: 8px; cursor: pointer;
   transition: all 0.15s;
+  white-space: nowrap; flex-shrink: 0;
 }
 .nav-btn:hover { color: var(--text); background: rgba(255,255,255,0.05); }
 .nav-btn.active {
@@ -724,7 +730,9 @@ small { font-size: 0.78em; }
 /* ============================================================
    TRIP CARDS LIST
    ============================================================ */
-.trips-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1rem; }
+/* min() clamps the 320px floor to the container, so the card cannot
+   outgrow the viewport on a 320px-wide phone. */
+.trips-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); gap: 1rem; }
 
 .trip-card {
   text-align: left; cursor: pointer; padding: 1.3rem;
@@ -942,7 +950,13 @@ small { font-size: 0.78em; }
   .trip-layout { grid-template-columns: 1fr; }
   .map-panel { position: static; max-width: 480px; margin: 0 auto; }
   .app-header { height: auto; padding: 0.75rem 1.1rem; flex-wrap: wrap; gap: 0.75rem; }
-  .hdr-nav { order: 3; width: 100%; overflow-x: auto; padding-bottom: 0.25rem; }
+  .hdr-nav {
+    order: 3; width: 100%; overflow-x: auto; padding-bottom: 0.25rem;
+    justify-content: flex-start;      /* always a scrolling tab strip here */
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;            /* the clipped last tab is the affordance */
+  }
+  .hdr-nav::-webkit-scrollbar { display: none; }
   .lb-row { grid-template-columns: 40px 1.6fr 1fr 0.7fr 0.9fr; }
   .lb-row span:nth-child(4) { display: none; }
 }
