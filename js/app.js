@@ -2,15 +2,22 @@
 // BRAW — app shell: auth, navigation, views, event wiring.
 // ============================================================
 
-import { POIS, POI_BY_ID, INTERESTS, LEVELS, XP_EVENTS, ACHIEVEMENTS, RIVALS, EXAMPLE_PROMPTS } from './data.js';
+import { POIS, POI_BY_ID, INTERESTS, LEVELS, XP_EVENTS, ACHIEVEMENTS, RIVALS } from './data.js';
 import { store } from './store.js';
-import { awardXP, evaluateAchievements, userStats, toastInfo, burstConfetti, setQuiet } from './gamification.js';
-import { generateTrip, tripProgress, tripStopIds } from './planner.js';
+import { awardXP, evaluateAchievements, userStats, toastInfo, burstConfetti, setQuiet, activityText } from './gamification.js';
+import { generateTrip, tripProgress, tripStopIds, tripTitle, paceLabel } from './planner.js';
 import { renderMap } from './scotland-map.js';
+import {
+  t, getLang, setLang, onLangChange, applyStatic, LANGS,
+  poiName, poiBlurb, regionName, poiTime, cityName,
+  interestLabel, levelTitle, achievementName, achievementDesc,
+  examplePrompts, formatDistance, formatNumber, locale,
+} from './i18n.js';
 
 let user = null;          // current logged-in profile
 let draftTrip = null;     // generated but not yet saved
 let openTripId = null;    // trip shown in detail view
+let currentView = 'plan'; // view to restore after a language switch
 
 const $ = sel => document.querySelector(sel);
 const $$ = sel => [...document.querySelectorAll(sel)];
@@ -38,17 +45,51 @@ function enterApp() {
 }
 
 // ============================================================
+// Language
+// ============================================================
+
+function wireLanguage() {
+  $$('.lang-btn').forEach(btn =>
+    btn.addEventListener('click', () => setLang(btn.dataset.lang))
+  );
+  syncLangButtons();
+
+  onLangChange(() => {
+    syncLangButtons();
+    syncAuthSubmit();
+    if (user) { renderHeader(); switchView(currentView); }
+  });
+}
+
+function syncLangButtons() {
+  const active = getLang();
+  $$('.lang-btn').forEach(b => {
+    const on = b.dataset.lang === active;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-pressed', String(on));
+    b.title = LANGS[b.dataset.lang].label;
+  });
+}
+
+/** Keep the submit button's key in step with the active auth tab. */
+function syncAuthSubmit() {
+  const mode = $('#auth-form').dataset.mode;
+  const btn = $('#auth-submit');
+  btn.dataset.i18n = mode === 'login' ? 'auth.submit.loginArrow' : 'auth.submit.registerArrow';
+  btn.textContent = t(btn.dataset.i18n);
+}
+
+// ============================================================
 // Auth screen
 // ============================================================
 
 function wireAuth() {
   $$('.auth-tab').forEach(tab =>
     tab.addEventListener('click', () => {
-      $$('.auth-tab').forEach(t => t.classList.toggle('active', t === tab));
-      const mode = tab.dataset.mode;
-      $('#auth-submit').textContent = mode === 'login' ? 'Sign in →' : 'Create account →';
-      $('#auth-form').dataset.mode = mode;
+      $$('.auth-tab').forEach(t2 => t2.classList.toggle('active', t2 === tab));
+      $('#auth-form').dataset.mode = tab.dataset.mode;
       $('#auth-error').textContent = '';
+      syncAuthSubmit();
     })
   );
 
@@ -61,14 +102,14 @@ function wireAuth() {
     try {
       if (mode === 'login') {
         user = await store.login(name, pass);
-        toastInfo(`Welcome back, ${user.name}!`, '🏴󠁧󠁢󠁳󠁣󠁴󠁿');
+        toastInfo(t('act.welcomeBack', { name: user.name }), '🏴󠁧󠁢󠁳󠁣󠁴󠁿');
       } else {
         user = await store.register(name, pass);
-        awardXP(user, XP_EVENTS.JOIN, 'Joined the expedition', '🏴󠁧󠁢󠁳󠁣󠁴󠁿');
+        awardXP(user, XP_EVENTS.JOIN, 'act.joined', null, '🏴󠁧󠁢󠁳󠁣󠁴󠁿');
       }
       enterApp();
     } catch (err) {
-      $('#auth-error').textContent = err.message;
+      $('#auth-error').textContent = err.i18nKey ? t(err.i18nKey) : err.message;
     }
   });
 
@@ -78,25 +119,27 @@ function wireAuth() {
     catch {
       user = await store.register(demoName, 'demo1234');
       setQuiet(true);
-      awardXP(user, XP_EVENTS.JOIN, 'Joined the expedition', '🏴󠁧󠁢󠁳󠁣󠁴󠁿');
+      awardXP(user, XP_EVENTS.JOIN, 'act.joined', null, '🏴󠁧󠁢󠁳󠁣󠁴󠁿');
       seedDemoProgress();
       setQuiet(false);
     }
     enterApp();
     const lvl = LEVELS.fromXP(user.xp);
-    toastInfo(`Welcome, ${user.name} — LVL ${lvl.level} ${LEVELS.titleFor(lvl.level)} with a quest underway!`, '🎲');
+    toastInfo(t('act.welcomeDemo', {
+      name: user.name, level: lvl.level, title: levelTitle(lvl.level),
+    }), '🎲');
   });
 }
 
 /** Give the demo account a head start so every screen has life in it. */
 function seedDemoProgress() {
-  const trip = generateTrip('5 days of castles, whisky and misty lochs starting from Edinburgh');
+  const trip = generateTrip(t('planner.demoPrompt'));
   user.trips.unshift(trip);
-  awardXP(user, XP_EVENTS.CREATE_TRIP, `Quest created: ${trip.title}`, '🗺️');
+  awardXP(user, XP_EVENTS.CREATE_TRIP, 'act.questCreated', { title: tripTitle(trip) }, '🗺️');
   const ids = tripStopIds(trip).slice(0, 4);
   for (const id of ids) {
     trip.visited[id] = Date.now();
-    awardXP(user, POI_BY_ID[id].xp, `Visited ${POI_BY_ID[id].name}`, POI_BY_ID[id].icon);
+    awardXP(user, POI_BY_ID[id].xp, 'act.visited', { poiId: id }, POI_BY_ID[id].icon);
   }
   evaluateAchievements(user);
   store.save();
@@ -110,10 +153,10 @@ function renderHeader() {
   const { level, into, need } = LEVELS.fromXP(user.xp);
   $('#hdr-avatar').textContent = user.name[0].toUpperCase();
   $('#hdr-name').textContent = user.name;
-  $('#hdr-level').textContent = `LVL ${level}`;
-  $('#hdr-title').textContent = LEVELS.titleFor(level);
+  $('#hdr-level').textContent = t('hdr.level', { level });
+  $('#hdr-title').textContent = levelTitle(level);
   $('#hdr-xp-fill').style.width = `${Math.round((into / need) * 100)}%`;
-  $('#hdr-xp-label').textContent = `${into} / ${need} XP`;
+  $('#hdr-xp-label').textContent = t('hdr.xp', { into, need });
 }
 
 // ============================================================
@@ -123,6 +166,7 @@ function renderHeader() {
 const VIEWS = ['plan', 'trips', 'trip', 'badges', 'leaderboard', 'profile'];
 
 function switchView(name) {
+  currentView = name;
   for (const v of VIEWS) $(`#view-${v}`).hidden = v !== name;
   $$('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.view === name));
   const renderers = { plan: renderPlan, trips: renderTrips, trip: renderTripDetail, badges: renderBadges, leaderboard: renderLeaderboard, profile: renderProfile };
@@ -146,7 +190,8 @@ function wireNav() {
 
 function renderPlan() {
   const host = $('#example-chips');
-  host.innerHTML = EXAMPLE_PROMPTS.map(p => `<button class="chip" data-prompt="${esc(p)}">${esc(p)}</button>`).join('');
+  host.innerHTML = examplePrompts()
+    .map(p => `<button class="chip" data-prompt="${esc(p)}">${esc(p)}</button>`).join('');
   host.querySelectorAll('.chip').forEach(c =>
     c.addEventListener('click', () => { $('#plan-input').value = c.dataset.prompt; $('#plan-input').focus(); })
   );
@@ -155,25 +200,25 @@ function renderPlan() {
 }
 
 const THINKING_STEPS = [
-  ['📖', 'Reading your wishes…'],
-  ['🔍', `Scouting ${POIS.length} Scottish locations…`],
-  ['🧮', 'Matching interests and scoring stops…'],
-  ['🧭', 'Charting the bonniest route…'],
-  ['✨', 'Polishing your quest…'],
+  ['📖', 'plan.think.read'],
+  ['🔍', 'plan.think.scout'],
+  ['🧮', 'plan.think.match'],
+  ['🧭', 'plan.think.route'],
+  ['✨', 'plan.think.polish'],
 ];
 
 async function runPlanner() {
   const text = $('#plan-input').value.trim();
-  if (text.length < 8) { toastInfo('Tell me a wee bit more about your dream trip!', '✍️'); return; }
+  if (text.length < 8) { toastInfo(t('plan.tooShort'), '✍️'); return; }
 
   $('#plan-result').hidden = true;
   const think = $('#plan-thinking');
   think.hidden = false;
   think.innerHTML = '';
-  for (const [icon, label] of THINKING_STEPS) {
+  for (const [icon, key] of THINKING_STEPS) {
     const row = document.createElement('div');
     row.className = 'think-step';
-    row.innerHTML = `<span>${icon}</span> ${label}`;
+    row.innerHTML = `<span>${icon}</span> ${esc(t(key, { count: POIS.length }))}`;
     think.appendChild(row);
     requestAnimationFrame(() => row.classList.add('on'));
     await new Promise(r => setTimeout(r, 380 + Math.random() * 220));
@@ -183,48 +228,52 @@ async function runPlanner() {
   renderDraft();
 }
 
+// Icons stay in the dataset; labels come from the locale.
 function interestPills(keys) {
-  if (!keys.length) return `<span class="pill">✨ Best of Scotland</span>`;
-  return keys.map(k => `<span class="pill">${INTERESTS[k].icon} ${INTERESTS[k].label}</span>`).join('');
+  if (!keys.length) return `<span class="pill">${t('trip.bestOf')}</span>`;
+  return keys
+    .filter(k => INTERESTS[k])
+    .map(k => `<span class="pill">${INTERESTS[k].icon} ${esc(interestLabel(k))}</span>`)
+    .join('');
 }
 
 function renderDraft() {
-  const t = draftTrip;
+  const trip = draftTrip;
   const box = $('#plan-result');
   box.hidden = false;
-  const stops = tripStopIds(t).map((id, i) => ({ poi: POI_BY_ID[id], visited: false, order: i + 1 }));
+  const stops = tripStopIds(trip).map((id, i) => ({ poi: POI_BY_ID[id], visited: false, order: i + 1 }));
 
   box.innerHTML = `
     <div class="trip-sheet card">
       <div class="sheet-head">
         <div>
-          <div class="kicker">YOUR QUEST AWAITS</div>
-          <h2 class="trip-title">${esc(t.title)}</h2>
-          <div class="pill-row">${interestPills(t.interests)}
-            <span class="pill pill-dim">🚗 ≈${t.distanceMi} mi</span>
-            <span class="pill pill-dim">⚡ ${t.paceLabel} pace</span>
-            <span class="pill pill-gold">✦ ${t.xpOnOffer + XP_EVENTS.CREATE_TRIP} XP on offer</span>
+          <div class="kicker">${t('trip.kicker.draft')}</div>
+          <h2 class="trip-title">${esc(tripTitle(trip))}</h2>
+          <div class="pill-row">${interestPills(trip.interests)}
+            <span class="pill pill-dim">${t('trip.distance', { dist: formatDistance(trip) })}</span>
+            <span class="pill pill-dim">${t('trip.pace', { pace: paceLabel(trip) })}</span>
+            <span class="pill pill-gold">${t('trip.xpOffer', { xp: trip.xpOnOffer + XP_EVENTS.CREATE_TRIP })}</span>
           </div>
         </div>
         <div class="sheet-actions">
-          <button class="btn btn-ghost" id="reshuffle-btn">🎲 Reshuffle</button>
-          <button class="btn btn-primary" id="save-trip-btn">Begin this Quest ⚔️</button>
+          <button class="btn btn-ghost" id="reshuffle-btn">${t('trip.reshuffle')}</button>
+          <button class="btn btn-primary" id="save-trip-btn">${t('trip.begin')}</button>
         </div>
       </div>
       <div class="trip-layout">
-        <div class="map-panel">${renderMap(stops, t.start)}</div>
-        <div class="days-panel">${dayListHTML(t, false)}</div>
+        <div class="map-panel">${renderMap(stops, trip.start)}</div>
+        <div class="days-panel">${dayListHTML(trip, false)}</div>
       </div>
     </div>`;
 
-  $('#reshuffle-btn').addEventListener('click', () => { draftTrip = generateTrip(t.prompt); renderDraft(); });
+  $('#reshuffle-btn').addEventListener('click', () => { draftTrip = generateTrip(trip.prompt); renderDraft(); });
   $('#save-trip-btn').addEventListener('click', saveDraft);
   wireMarkerHover(box);
 }
 
 function saveDraft() {
   user.trips.unshift(draftTrip);
-  awardXP(user, XP_EVENTS.CREATE_TRIP, `Quest created: ${draftTrip.title}`, '🗺️');
+  awardXP(user, XP_EVENTS.CREATE_TRIP, 'act.questCreated', { title: tripTitle(draftTrip) }, '🗺️');
   evaluateAchievements(user);
   openTripId = draftTrip.id;
   draftTrip = null;
@@ -242,29 +291,32 @@ function renderTrips() {
     host.innerHTML = `
       <div class="empty-state card">
         <div class="empty-icon">🗺️</div>
-        <h3>Nae quests yet!</h3>
-        <p>Describe your dream Scottish adventure and let the planner chart your course.</p>
-        <button class="btn btn-primary" id="empty-plan-btn">Plan my first quest →</button>
+        <h3>${t('trips.empty.title')}</h3>
+        <p>${t('trips.empty.body')}</p>
+        <button class="btn btn-primary" id="empty-plan-btn">${t('trips.empty.cta')}</button>
       </div>`;
     $('#empty-plan-btn').addEventListener('click', () => switchView('plan'));
     return;
   }
 
-  host.innerHTML = user.trips.map(t => {
-    const pr = tripProgress(t);
-    const done = !!t.completedAt;
+  host.innerHTML = user.trips.map(trip => {
+    const pr = tripProgress(trip);
+    const done = !!trip.completedAt;
     return `
-    <button class="trip-card card ${done ? 'is-complete' : ''}" data-trip="${t.id}">
+    <button class="trip-card card ${done ? 'is-complete' : ''}" data-trip="${trip.id}">
       <div class="tc-top">
         <span class="tc-icon">${done ? '🏁' : '🛤️'}</span>
         <div class="tc-names">
-          <span class="tc-title">${esc(t.title)}</span>
-          <span class="tc-sub">${t.days.length} days · ${pr.total} stops · ≈${t.distanceMi} mi · from ${esc(t.start.name)}</span>
+          <span class="tc-title">${esc(tripTitle(trip))}</span>
+          <span class="tc-sub">${esc(t('trips.card.meta', {
+            days: trip.days.length, stops: pr.total,
+            dist: formatDistance(trip), start: cityName(trip.start.name),
+          }))}</span>
         </div>
-        ${done ? '<span class="tc-badge">COMPLETED</span>' : `<span class="tc-pct">${pr.pct}%</span>`}
+        ${done ? `<span class="tc-badge">${t('trips.card.completed')}</span>` : `<span class="tc-pct">${pr.pct}%</span>`}
       </div>
       <div class="progress"><div class="progress-fill" style="width:${pr.pct}%"></div></div>
-      <div class="tc-foot">${pr.done} of ${pr.total} locations visited</div>
+      <div class="tc-foot">${t('trips.card.progress', { done: pr.done, total: pr.total })}</div>
     </button>`;
   }).join('');
 
@@ -288,29 +340,29 @@ function dayListHTML(trip, interactive) {
       <div class="stop ${visited ? 'is-visited' : ''}" data-poi="${id}">
         <div class="stop-order">${visited ? '✓' : order}</div>
         <div class="stop-body">
-          <div class="stop-name">${poi.icon} ${esc(poi.name)}</div>
-          <div class="stop-meta">${esc(poi.region)} · ${poi.time} · <span class="stop-xp">✦ ${poi.xp} XP</span></div>
-          <div class="stop-blurb">${esc(poi.blurb)}</div>
+          <div class="stop-name">${poi.icon} ${esc(poiName(poi))}</div>
+          <div class="stop-meta">${esc(regionName(poi.region))} · ${esc(poiTime(poi.time))} · <span class="stop-xp">✦ ${poi.xp} ${t('unit.xp')}</span></div>
+          <div class="stop-blurb">${esc(poiBlurb(poi))}</div>
         </div>
         ${interactive ? `
         <button class="visit-btn ${visited ? 'undo' : ''}" data-visit="${id}">
-          ${visited ? 'Visited ✓' : 'Mark visited'}
+          ${visited ? t('trip.visited') : t('trip.markVisited')}
         </button>` : ''}
       </div>`;
     }).join('');
-    const regions = [...new Set(d.stops.map(id => POI_BY_ID[id].region))];
+    const regions = [...new Set(d.stops.map(id => regionName(POI_BY_ID[id].region)))];
     return `
     <section class="day-block">
-      <header class="day-head"><span class="day-num">DAY ${d.day}</span><span class="day-regions">${esc(regions.join(' → '))}</span></header>
+      <header class="day-head"><span class="day-num">${t('trip.day', { n: d.day })}</span><span class="day-regions">${esc(regions.join(' → '))}</span></header>
       ${stopsHTML}
     </section>`;
   }).join('');
 }
 
 function renderTripDetail() {
-  const trip = user.trips.find(t => t.id === openTripId) || user.trips[0];
+  const trip = user.trips.find(t2 => t2.id === openTripId) || user.trips[0];
   const host = $('#trip-detail');
-  if (!trip) { host.innerHTML = '<p class="muted">No quest selected.</p>'; return; }
+  if (!trip) { host.innerHTML = `<p class="muted">${t('trip.none')}</p>`; return; }
   openTripId = trip.id;
 
   const pr = tripProgress(trip);
@@ -319,19 +371,19 @@ function renderTripDetail() {
   const next = stops.find(s => !s.visited);
 
   host.innerHTML = `
-    <button class="back-link" id="back-to-trips">← All quests</button>
+    <button class="back-link" id="back-to-trips">${t('trip.back')}</button>
     <div class="trip-sheet card ${trip.completedAt ? 'is-complete' : ''}">
       <div class="sheet-head">
         <div>
-          <div class="kicker">${trip.completedAt ? '🏁 QUEST COMPLETE' : 'ACTIVE QUEST'}</div>
-          <h2 class="trip-title">${esc(trip.title)}</h2>
+          <div class="kicker">${trip.completedAt ? t('trip.kicker.complete') : t('trip.kicker.active')}</div>
+          <h2 class="trip-title">${esc(tripTitle(trip))}</h2>
           <div class="pill-row">${interestPills(trip.interests)}
-            <span class="pill pill-dim">🚗 ≈${trip.distanceMi} mi</span>
-            <span class="pill pill-dim">📍 from ${esc(trip.start.name)}</span>
+            <span class="pill pill-dim">${t('trip.distance', { dist: formatDistance(trip) })}</span>
+            <span class="pill pill-dim">${esc(t('trip.from', { start: cityName(trip.start.name) }))}</span>
           </div>
           <p class="trip-prompt">“${esc(trip.prompt)}”</p>
         </div>
-        <div class="ring-wrap" title="${pr.done}/${pr.total} visited">
+        <div class="ring-wrap" title="${esc(t('trip.visitedRatio', { done: pr.done, total: pr.total }))}">
           <svg viewBox="0 0 90 90" class="ring">
             <circle cx="45" cy="45" r="38" class="ring-bg"/>
             <circle cx="45" cy="45" r="38" class="ring-fg" stroke-dasharray="${(pr.pct / 100) * 238.8} 238.8"/>
@@ -341,12 +393,14 @@ function renderTripDetail() {
       </div>
 
       ${trip.completedAt ? `
-        <div class="complete-banner">🎉 Every stop conquered! +${XP_EVENTS.COMPLETE_TRIP} XP claimed. Scotland salutes you.</div>
+        <div class="complete-banner">${t('trip.completeBanner', { xp: XP_EVENTS.COMPLETE_TRIP })}</div>
       ` : next ? `
         <div class="next-up">
-          <span class="nu-kicker">NEXT UP</span>
-          <span class="nu-name">${next.poi.icon} ${esc(next.poi.name)}</span>
-          <span class="nu-meta">${esc(next.poi.region)} · stop ${next.order} of ${pr.total} · ✦ ${next.poi.xp} XP</span>
+          <span class="nu-kicker">${t('trip.nextUp')}</span>
+          <span class="nu-name">${next.poi.icon} ${esc(poiName(next.poi))}</span>
+          <span class="nu-meta">${esc(t('trip.stopOf', {
+            region: regionName(next.poi.region), n: next.order, total: pr.total, xp: next.poi.xp,
+          }))}</span>
         </div>` : ''}
 
       <div class="trip-layout">
@@ -367,15 +421,15 @@ function toggleVisited(trip, poiId) {
   if (trip.visited[poiId]) {
     delete trip.visited[poiId];
     if (trip.completedAt) trip.completedAt = null;
-    awardXP(user, -poi.xp, `Unmarked ${poi.name}`, '↩️');
-    toastInfo(`${poi.name} unmarked (−${poi.xp} XP)`, '↩️');
+    awardXP(user, -poi.xp, 'act.unmarked', { poiId }, '↩️');
+    toastInfo(t('act.unmarkedToast', { name: poiName(poi), xp: poi.xp }), '↩️');
   } else {
     trip.visited[poiId] = Date.now();
-    awardXP(user, poi.xp, `Visited ${poi.name}`, poi.icon);
+    awardXP(user, poi.xp, 'act.visited', { poiId }, poi.icon);
     const pr = tripProgress(trip);
     if (pr.done === pr.total && !trip.completedAt) {
       trip.completedAt = Date.now();
-      awardXP(user, XP_EVENTS.COMPLETE_TRIP, `Quest completed: ${trip.title}`, '🏁');
+      awardXP(user, XP_EVENTS.COMPLETE_TRIP, 'act.questCompleted', { title: tripTitle(trip) }, '🏁');
       burstConfetti(60);
     }
     evaluateAchievements(user);
@@ -404,15 +458,18 @@ function wireMarkerHover(scope) {
 
 function renderBadges() {
   const owned = new Map(user.achievements.map(a => [a.id, a.at]));
-  $('#badges-count').textContent = `${owned.size} / ${ACHIEVEMENTS.length} unlocked`;
+  $('#badges-count-label').textContent = t('badges.count', { owned: owned.size, total: ACHIEVEMENTS.length });
+  $('#badges-progress-fill').style.width = `${Math.round((owned.size / ACHIEVEMENTS.length) * 100)}%`;
   $('#badges-grid').innerHTML = ACHIEVEMENTS.map(def => {
     const at = owned.get(def.id);
     return `
     <div class="badge card ${at ? 'unlocked' : 'locked'}">
       <div class="badge-shield">${at ? def.icon : '🔒'}</div>
-      <div class="badge-name">${def.name}</div>
-      <div class="badge-desc">${def.desc}</div>
-      <div class="badge-xp">${at ? `Unlocked ${new Date(at).toLocaleDateString()}` : `Reward: +${def.xp} XP`}</div>
+      <div class="badge-name">${esc(achievementName(def.id))}</div>
+      <div class="badge-desc">${esc(achievementDesc(def.id))}</div>
+      <div class="badge-xp">${at
+        ? t('badges.unlockedOn', { date: new Date(at).toLocaleDateString(locale()) })
+        : t('badges.reward', { xp: def.xp })}</div>
     </div>`;
   }).join('');
 }
@@ -428,7 +485,7 @@ function renderLeaderboard() {
 
   $('#leaderboard-table').innerHTML = `
     <div class="lb-row lb-head">
-      <span>#</span><span>Explorer</span><span>Level</span><span>Locations</span><span>Quests done</span><span>XP</span>
+      <span>${t('lb.col.rank')}</span><span>${t('lb.col.explorer')}</span><span>${t('lb.col.level')}</span><span>${t('lb.col.locations')}</span><span>${t('lb.col.quests')}</span><span>${t('lb.col.xp')}</span>
     </div>` +
     rows.map((r, i) => {
       const lvl = LEVELS.fromXP(r.xp).level;
@@ -436,19 +493,22 @@ function renderLeaderboard() {
       return `
       <div class="lb-row ${r.you ? 'lb-you' : ''}">
         <span class="lb-rank">${medal}</span>
-        <span class="lb-name"><i class="lb-avatar" style="background:${r.colour}">${r.name[0].toUpperCase()}</i>${esc(r.name)}${r.you ? ' <b>· YOU</b>' : ''}</span>
-        <span>LVL ${lvl} <small>${LEVELS.titleFor(lvl)}</small></span>
+        <span class="lb-name"><i class="lb-avatar" style="background:${r.colour}">${r.name[0].toUpperCase()}</i>${esc(r.name)}${r.you ? ` <b>${t('lb.you')}</b>` : ''}</span>
+        <span>${t('hdr.level', { level: lvl })} <small>${esc(levelTitle(lvl))}</small></span>
         <span>${r.visited}</span>
         <span>${r.trips}</span>
-        <span class="lb-xp">${r.xp.toLocaleString()} ✦</span>
+        <span class="lb-xp">${formatNumber(r.xp)} ✦</span>
       </div>`;
     }).join('');
 
   const rank = rows.findIndex(r => r.you) + 1;
-  const ahead = rank > 1 ? rows[rank - 2].xp - user.xp + 1 : 0;
   $('#leaderboard-note').textContent = rank === 1
-    ? 'You sit at the top o’ the mountain. Defend it!'
-    : `You're #${rank} of ${rows.length}. ${ahead.toLocaleString()} XP to overtake ${rows[rank - 2].name}.`;
+    ? t('lb.note.first')
+    : t('lb.note.rank', {
+        rank, total: rows.length,
+        xp: formatNumber(rows[rank - 2].xp - user.xp + 1),
+        name: rows[rank - 2].name,
+      });
 }
 
 // ============================================================
@@ -464,36 +524,36 @@ function renderProfile() {
       <div class="ph-avatar">${user.name[0].toUpperCase()}</div>
       <div class="ph-id">
         <h2>${esc(user.name)}</h2>
-        <div class="ph-title">LVL ${level} · ${LEVELS.titleFor(level)}</div>
+        <div class="ph-title">${t('profile.levelTitle', { level, title: esc(levelTitle(level)) })}</div>
         <div class="progress big"><div class="progress-fill" style="width:${Math.round((into / need) * 100)}%"></div></div>
-        <div class="ph-xp">${into} / ${need} XP to level ${level + 1} · ${user.xp.toLocaleString()} XP total</div>
+        <div class="ph-xp">${t('profile.xpToNext', { into, need, next: level + 1, total: formatNumber(user.xp) })}</div>
       </div>
-      <button class="btn btn-ghost" id="profile-logout">Sign out</button>
+      <button class="btn btn-ghost" id="profile-logout">${t('nav.signOut')}</button>
     </div>
 
     <div class="stat-grid">
       ${[
-        ['📍', s.visitedCount, 'locations visited'],
-        ['🗺️', s.tripsCreated, 'quests created'],
-        ['🏁', s.tripsCompleted, 'quests completed'],
-        ['🏰', s.castles, 'castles stormed'],
-        ['🥃', s.distilleries, 'drams earned'],
-        ['🌍', s.regions, 'regions explored'],
-        ['🏔️', s.peaks, 'peaks bagged'],
-        ['🏅', user.achievements.length, 'achievements'],
-      ].map(([icon, n, label]) => `
-        <div class="stat card"><span class="stat-icon">${icon}</span><span class="stat-n">${n}</span><span class="stat-label">${label}</span></div>`).join('')}
+        ['📍', s.visitedCount, 'profile.stat.visited'],
+        ['🗺️', s.tripsCreated, 'profile.stat.created'],
+        ['🏁', s.tripsCompleted, 'profile.stat.completed'],
+        ['🏰', s.castles, 'profile.stat.castles'],
+        ['🥃', s.distilleries, 'profile.stat.drams'],
+        ['🌍', s.regions, 'profile.stat.regions'],
+        ['🏔️', s.peaks, 'profile.stat.peaks'],
+        ['🏅', user.achievements.length, 'profile.stat.badges'],
+      ].map(([icon, n, key]) => `
+        <div class="stat card"><span class="stat-icon">${icon}</span><span class="stat-n">${n}</span><span class="stat-label">${esc(t(key))}</span></div>`).join('')}
     </div>
 
     <div class="card activity-card">
-      <h3>Recent activity</h3>
+      <h3>${t('profile.activity')}</h3>
       ${user.activity.length ? user.activity.slice(0, 8).map(a => `
         <div class="act-row">
           <span class="act-icon">${a.icon}</span>
-          <span class="act-text">${esc(a.text)}</span>
-          <span class="act-xp ${a.xp < 0 ? 'neg' : ''}">${a.xp >= 0 ? '+' : ''}${a.xp} XP</span>
+          <span class="act-text">${esc(activityText(a))}</span>
+          <span class="act-xp ${a.xp < 0 ? 'neg' : ''}">${a.xp >= 0 ? '+' : ''}${a.xp} ${t('unit.xp')}</span>
           <span class="act-when">${timeAgo(a.at)}</span>
-        </div>`).join('') : '<p class="muted">Nothing yet — go make some memories!</p>'}
+        </div>`).join('') : `<p class="muted">${t('profile.activityEmpty')}</p>`}
     </div>`;
 
   $('#profile-logout').addEventListener('click', () => $('#logout-btn').click());
@@ -501,10 +561,10 @@ function renderProfile() {
 
 function timeAgo(ts) {
   const s = Math.floor((Date.now() - ts) / 1000);
-  if (s < 60) return 'just now';
-  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
-  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
-  return `${Math.floor(s / 86400)}d ago`;
+  if (s < 60) return t('time.now');
+  if (s < 3600) return t('time.min', { n: Math.floor(s / 60) });
+  if (s < 86400) return t('time.hour', { n: Math.floor(s / 3600) });
+  return t('time.day', { n: Math.floor(s / 86400) });
 }
 
 // ============================================================
@@ -512,6 +572,9 @@ function timeAgo(ts) {
 // ============================================================
 
 document.addEventListener('DOMContentLoaded', () => {
+  document.documentElement.lang = getLang();
+  applyStatic();
+  wireLanguage();
   wireAuth();
   wireNav();
   $('#plan-go').addEventListener('click', runPlanner);

@@ -26,6 +26,16 @@ async function hashPassword(str) {
   return 'x' + h.toString(16);
 }
 
+/**
+ * Auth failures carry a translation key rather than English prose, so the
+ * UI can render them in whichever language is active when they surface.
+ */
+function authError(key) {
+  const err = new Error(key);
+  err.i18nKey = key;
+  return err;
+}
+
 function freshProfile(name) {
   return {
     name,
@@ -49,9 +59,9 @@ export const store = {
 
   async register(name, password) {
     const key = name.trim().toLowerCase();
-    if (!/^[a-z0-9_ .-]{3,24}$/i.test(name.trim())) throw new Error('Name must be 3–24 letters, numbers or _ . -');
-    if (password.length < 4) throw new Error('Password needs at least 4 characters.');
-    if (this.users[key]) throw new Error('That explorer name is already taken.');
+    if (!/^[a-z0-9_ .-]{3,24}$/i.test(name.trim())) throw authError('auth.err.nameFormat');
+    if (password.length < 4) throw authError('auth.err.passShort');
+    if (this.users[key]) throw authError('auth.err.taken');
     const user = freshProfile(name.trim());
     user.passHash = await hashPassword(password);
     this.users[key] = user;
@@ -63,8 +73,8 @@ export const store = {
   async login(name, password) {
     const key = name.trim().toLowerCase();
     const user = this.users[key];
-    if (!user) throw new Error('No explorer found with that name.');
-    if (user.passHash !== await hashPassword(password)) throw new Error('Wrong password, try again.');
+    if (!user) throw authError('auth.err.noUser');
+    if (user.passHash !== await hashPassword(password)) throw authError('auth.err.wrongPass');
     localStorage.setItem(SESSION_KEY, key);
     return user;
   },

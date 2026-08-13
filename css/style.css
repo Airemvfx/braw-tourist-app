@@ -411,6 +411,30 @@ small { font-size: 0.78em; }
 }
 .icon-btn:hover { color: var(--rose); border-color: var(--rose); }
 
+/* ---- Language switcher ---- */
+.lang-switch {
+  display: inline-flex; flex-shrink: 0;
+  border: 1px solid var(--border); border-radius: 8px;
+  overflow: hidden; background: rgba(0,0,0,0.15);
+}
+.lang-btn {
+  border: 0; background: transparent; cursor: pointer;
+  font-family: var(--font-mono); font-size: 0.72rem; font-weight: 600;
+  letter-spacing: 0.06em; color: var(--text-faint);
+  padding: 0.34rem 0.5rem; transition: all 0.15s;
+}
+.lang-btn + .lang-btn { border-left: 1px solid var(--border); }
+.lang-btn:hover { color: var(--text); background: rgba(200,170,110,0.07); }
+.lang-btn.active {
+  color: #1a0e00;
+  background: linear-gradient(180deg, var(--amber-light), var(--amber));
+}
+.lang-btn:focus-visible { outline: 2px solid var(--border-active); outline-offset: -2px; }
+
+/* Auth screen sits the switcher above the sign-in card. */
+.auth-lang { position: absolute; top: 1.5rem; right: 1.75rem; z-index: 2; }
+.auth-panel { position: relative; }
+
 .scope-banner {
   height: 3px;
   background:
@@ -921,4 +945,15 @@ small { font-size: 0.78em; }
   .hdr-nav { order: 3; width: 100%; overflow-x: auto; padding-bottom: 0.25rem; }
   .lb-row { grid-template-columns: 40px 1.6fr 1fr 0.7fr 0.9fr; }
   .lb-row span:nth-child(4) { display: none; }
+}
+
+/* Phones: the header's right-hand cluster gains the language switcher,
+   so let it use the full row and shrink rather than push the page wide. */
+@media (max-width: 640px) {
+  .app-header { padding: 0.7rem 0.9rem; }
+  .hdr-right { width: 100%; gap: 0.55rem; flex-shrink: 1; justify-content: space-between; }
+  .hdr-xp-wrap { flex: 1 1 auto; min-width: 0; }
+  .hdr-user { min-width: 0; }
+  .hdr-uname { max-width: 9ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .auth-lang { top: 1rem; right: 1rem; }
 }

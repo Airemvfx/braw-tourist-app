@@ -8,6 +8,7 @@
 // ============================================================
 
 import { POIS, INTERESTS, START_CITIES, REGION_HINTS } from './data.js';
+import { t as translate } from './i18n.js';
 
 const KM_PER_DEG = 111;
 
@@ -17,42 +18,61 @@ function distKm(a, b) {
   return Math.hypot(dLat, dLon);
 }
 
+/**
+ * Fold text to bare ASCII words so Polish input matches the keyword
+ * lists whether or not the user typed the diacritics. NFD splits most
+ * accents into combining marks we can drop; 'ł' has no decomposition
+ * so it is mapped explicitly.
+ */
+function normalise(text) {
+  return ` ${String(text)
+    .toLowerCase()
+    .replace(/ł/g, 'l')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()} `;
+}
+
 export function parsePrompt(text) {
-  const t = ` ${text.toLowerCase().replace(/[^a-z0-9\s]/g, ' ')} `;
+  const t = normalise(text);
+  const has = w => t.includes(` ${normalise(w).trim()} `);
 
   // interests
   const interests = [];
   for (const [key, def] of Object.entries(INTERESTS)) {
-    if (def.words.some(w => t.includes(` ${w} `) || t.includes(` ${w}s `))) interests.push(key);
+    if (def.words.some(w => has(w) || has(`${w}s`))) interests.push(key);
   }
 
-  // duration
+  // duration — English and Polish day/night/week wording
   let days = 5;
-  const m = t.match(/(\d+)\s*(?:day|days|night|nights)/);
+  const m = t.match(/(\d+)\s*(?:days?|nights?|dni|dzien|dni|noc|nocy|noce|dob[ay]?)/);
   if (m) days = parseInt(m[1], 10);
-  else if (/fortnight/.test(t)) days = 10;
-  else if (/\bweek\b/.test(t)) days = 7;
+  else if (/fortnight|dwa tygodnie/.test(t)) days = 10;
+  else if (/\bweek\b|tydzien|tygodnia|tygodniowy/.test(t)) days = 7;
   else if (/weekend/.test(t)) days = 2;
   days = Math.max(2, Math.min(10, days));
 
   // pace → stops per day
-  let pace = 3, paceLabel = 'Steady';
-  if (/relax|slow|chill|easy|gentle|leisurely|laid back/.test(t)) { pace = 2; paceLabel = 'Relaxed'; }
-  if (/packed|busy|ambitious|everything|intense|as much as/.test(t)) { pace = 4; paceLabel = 'Ambitious'; }
+  let pace = 3, paceKey = 'steady';
+  if (/relax|slow|chill|easy|gentle|leisurely|laid back|spokojn|wolno|luzn|na luzie|relaks|powoli|leniw/.test(t)) { pace = 2; paceKey = 'relaxed'; }
+  if (/packed|busy|ambitious|everything|intense|as much as|intensywn|ambitn|napiet|maksymaln|jak najwiecej/.test(t)) { pace = 4; paceKey = 'ambitious'; }
 
-  // start city
+  // start city — key plus any localised aliases
   let start = START_CITIES.edinburgh;
   for (const [key, city] of Object.entries(START_CITIES)) {
-    if (t.includes(` ${key} `)) { start = city; break; }
+    const names = [key, ...(city.aliases || [])];
+    if (names.some(has)) { start = city; break; }
   }
 
   // region bias
   const regionBias = new Set();
   for (const hint of REGION_HINTS) {
-    if (hint.words.some(w => t.includes(w))) hint.regions.forEach(r => regionBias.add(r));
+    if (hint.words.some(w => t.includes(normalise(w).slice(1, -1)))) hint.regions.forEach(r => regionBias.add(r));
   }
 
-  return { text, interests, days, pace, paceLabel, start, regionBias: [...regionBias] };
+  return { text, interests, days, pace, paceKey, start, regionBias: [...regionBias] };
 }
 
 function scorePoi(poi, req) {
@@ -84,12 +104,25 @@ function nearestNeighbourRoute(start, pois) {
   return route;
 }
 
-function tripTitle(req) {
-  const names = req.interests.slice(0, 2).map(i => INTERESTS[i].label);
-  const theme = names.length === 2 ? `${names[0]} & ${names[1]}`
+/**
+ * Build a trip's display title in the active language. Derived from the
+ * stored interest keys rather than baked in at generation time, so a
+ * saved quest re-titles itself when the user switches language.
+ */
+export function tripTitle(trip) {
+  const keys = (trip.interests || []).filter(k => INTERESTS[k]).slice(0, 2);
+  const names = keys.map(k => translate(`interest.${k}`));
+  const theme = names.length === 2 ? translate('planner.themeJoin', { a: names[0], b: names[1] })
     : names.length === 1 ? names[0]
-    : 'Best of Scotland';
-  return `${req.days}-Day ${theme} Quest`;
+    : translate('planner.themeDefault');
+  const days = trip.days?.length || trip.dayCount || 0;
+  return translate('planner.tripTitle', { days, theme });
+}
+
+/** Localised pace label, tolerating trips saved before paceKey existed. */
+export function paceLabel(trip) {
+  const key = trip.paceKey || { Relaxed: 'relaxed', Ambitious: 'ambitious' }[trip.paceLabel] || 'steady';
+  return translate(`pace.${key}`);
 }
 
 export function generateTrip(promptText) {
@@ -129,10 +162,9 @@ export function generateTrip(promptText) {
 
   return {
     id: 'trip_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-    title: tripTitle(req),
     prompt: promptText,
     interests: req.interests,
-    paceLabel: req.paceLabel,
+    paceKey: req.paceKey,
     start: req.start,
     days,
     distanceKm: km,

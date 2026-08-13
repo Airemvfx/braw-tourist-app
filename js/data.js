@@ -1,7 +1,13 @@
 // ============================================================
 // BRAW — Scotland dataset: locations, achievements, levels,
-// leaderboard seed players, example prompts.
+// leaderboard seed players.
 // Prototype scope: Scotland only (UK). Expandable later.
+//
+// Structure only — ids, coordinates, icons, tags, scores and the
+// keywords the planner matches on. All display text (level titles,
+// interest labels, achievement names/descriptions, example prompts,
+// and the Polish POI names/blurbs) lives in i18n.js / i18n-content.js
+// so there is a single source of truth per language.
 // ============================================================
 
 export const POIS = [
@@ -139,65 +145,63 @@ export const POIS = [
   { id: 'glencoe-ski', name: 'Glencoe Mountain Resort', region: 'Highlands', lat: 56.652, lon: -4.862, tags: ['skiing', 'snowboard', 'mountain', 'sport', 'scenic'], xp: 40, pop: 6, icon: '🏔️', time: 'full day', blurb: 'Scotland\'s oldest ski resort in the most dramatic mountain setting — Glencoe in winter is unmissable.' },
 ];
 
-// Starting points the parser can recognise.
+// Starting points the parser can recognise. `aliases` cover Polish
+// exonyms and their inflected forms ("ze startem w Edynburgu").
 export const START_CITIES = {
-  edinburgh: { name: 'Edinburgh', lat: 55.9533, lon: -3.1883 },
-  glasgow: { name: 'Glasgow', lat: 55.8642, lon: -4.2518 },
-  stirling: { name: 'Stirling', lat: 56.1165, lon: -3.9369 },
-  inverness: { name: 'Inverness', lat: 57.4778, lon: -4.2247 },
-  aberdeen: { name: 'Aberdeen', lat: 57.1497, lon: -2.0943 },
-  dundee: { name: 'Dundee', lat: 56.462, lon: -2.9707 },
-  oban: { name: 'Oban', lat: 56.4152, lon: -5.472 },
-  'fort william': { name: 'Fort William', lat: 56.8198, lon: -5.1052 },
-  portree: { name: 'Portree', lat: 57.4125, lon: -6.1944 },
+  edinburgh: { name: 'Edinburgh', lat: 55.9533, lon: -3.1883, aliases: ['edynburg', 'edynburga', 'edynburgu', 'edynburgiem'] },
+  glasgow: { name: 'Glasgow', lat: 55.8642, lon: -4.2518, aliases: ['glasgow'] },
+  stirling: { name: 'Stirling', lat: 56.1165, lon: -3.9369, aliases: ['stirling', 'stirlingu'] },
+  inverness: { name: 'Inverness', lat: 57.4778, lon: -4.2247, aliases: ['inverness'] },
+  aberdeen: { name: 'Aberdeen', lat: 57.1497, lon: -2.0943, aliases: ['aberdeen', 'aberdeenu'] },
+  dundee: { name: 'Dundee', lat: 56.462, lon: -2.9707, aliases: ['dundee'] },
+  oban: { name: 'Oban', lat: 56.4152, lon: -5.472, aliases: ['oban', 'obanu'] },
+  'fort william': { name: 'Fort William', lat: 56.8198, lon: -5.1052, aliases: ['fort william'] },
+  portree: { name: 'Portree', lat: 57.4125, lon: -6.1944, aliases: ['portree'] },
 };
 
 // Interest dictionary: what the "AI" listens for in the prompt.
+// `words` are matched after diacritic-stripping normalisation (see
+// planner.js), so Polish terms are listed here without accents where
+// a user might reasonably type them either way.
 export const INTERESTS = {
-  castles:  { label: 'Castles',     icon: '🏰', tags: ['castle'], words: ['castle', 'castles', 'fortress', 'fort', 'palace', 'palaces', 'ruin', 'ruins'] },
-  history:  { label: 'History',     icon: '📜', tags: ['history', 'ancient', 'royal'], words: ['history', 'historic', 'historical', 'heritage', 'battlefield', 'battle', 'medieval', 'ancient', 'abbey', 'monument', 'jacobite', 'clan', 'clans', 'viking', 'stones', 'standing stones'] },
-  whisky:   { label: 'Whisky',      icon: '🥃', tags: ['whisky'], words: ['whisky', 'whiskey', 'distillery', 'distilleries', 'dram', 'drams', 'scotch', 'speyside', 'malt', 'malts'] },
-  hiking:   { label: 'Hiking',      icon: '🥾', tags: ['hiking', 'mountain'], words: ['hike', 'hikes', 'hiking', 'walk', 'walks', 'walking', 'trek', 'trekking', 'munro', 'munros', 'mountain', 'mountains', 'climb', 'climbing', 'summit', 'summits', 'trail', 'trails', 'ramble'] },
-  nature:   { label: 'Nature',      icon: '🌿', tags: ['nature', 'waterfall', 'forest', 'scenic'], words: ['nature', 'outdoors', 'scenery', 'scenic', 'landscape', 'landscapes', 'waterfall', 'waterfalls', 'forest', 'forests', 'glen', 'glens', 'gorge', 'wilderness', 'wild'] },
-  lochs:    { label: 'Lochs',       icon: '🌊', tags: ['loch'], words: ['loch', 'lochs', 'lake', 'lakes'] },
-  islands:  { label: 'Islands',     icon: '⛴️', tags: ['island'], words: ['island', 'islands', 'isle', 'isles', 'skye', 'mull', 'arran', 'staffa', 'hebrides', 'ferry', 'ferries'] },
-  city:     { label: 'City & Culture', icon: '🏙️', tags: ['city', 'culture', 'art'], words: ['city', 'cities', 'urban', 'museum', 'museums', 'gallery', 'galleries', 'art', 'shopping', 'nightlife', 'culture', 'cultural', 'architecture', 'music'] },
-  food:     { label: 'Food & Drink', icon: '🦞', tags: ['food', 'village'], words: ['food', 'foodie', 'eat', 'eating', 'restaurant', 'restaurants', 'seafood', 'haggis', 'culinary', 'pub', 'pubs', 'chips', 'gastro', 'cuisine'] },
-  coast:    { label: 'Coast & Beaches', icon: '🏖️', tags: ['coast', 'beach', 'lighthouse'], words: ['coast', 'coastal', 'beach', 'beaches', 'sea', 'seaside', 'cliff', 'cliffs', 'lighthouse', 'lighthouses', 'shore', 'sunset', 'sunsets'] },
-  wildlife: { label: 'Wildlife',    icon: '🦌', tags: ['wildlife', 'stargazing'], words: ['wildlife', 'animal', 'animals', 'bird', 'birds', 'birdwatching', 'puffin', 'puffins', 'deer', 'seal', 'seals', 'dolphin', 'dolphins', 'eagle', 'eagles', 'stargazing', 'stars', 'dark sky'] },
-  mystery:  { label: 'Myths & Films', icon: '🔮', tags: ['mystery', 'folklore', 'film'], words: ['mystery', 'mysteries', 'myth', 'myths', 'legend', 'legends', 'legendary', 'folklore', 'ghost', 'ghosts', 'haunted', 'nessie', 'monster', 'fairy', 'fairies', 'outlander', 'harry potter', 'potter', 'braveheart', 'film', 'films', 'movie', 'movies'] },
-  family:   { label: 'Family',      icon: '🧸', tags: ['family'], words: ['family', 'kid', 'kids', 'children', 'child', 'toddler', 'toddlers'] },
-  driving:  { label: 'Scenic Drives', icon: '🛞', tags: ['drive', 'scenic', 'views'], words: ['drive', 'drives', 'driving', 'road trip', 'roads', 'nc500', 'north coast 500', 'viewpoint', 'viewpoints', 'photography', 'photo', 'photos', 'instagram'] },
-  kayaking: { label: 'Kayaking & Water', icon: '🛶', tags: ['kayaking', 'watersports', 'river', 'sea'], words: ['kayak', 'kayaking', 'kayaks', 'canoe', 'canoeing', 'paddle', 'paddling', 'white water', 'whitewater', 'raft', 'rafting', 'river', 'rivers', 'watersport', 'watersports', 'water sport', 'water sports', 'rowing'] },
-  wildswim: { label: 'Wild Swimming', icon: '🏊', tags: ['wildswim', 'waterfall', 'loch', 'river'], words: ['wild swim', 'wild swimming', 'wildswim', 'swim', 'swimming', 'dip', 'dipping', 'plunge', 'open water', 'cold water', 'natural pool', 'swimming hole'] },
-  cycling:  { label: 'Cycling & MTB', icon: '🚵', tags: ['cycling', 'biking', 'sport'], words: ['bike', 'biking', 'cycle', 'cycling', 'mountain bike', 'mountain biking', 'mtb', 'downhill', 'trail', 'trails', 'gravel', 'road cycling', 'velodrome'] },
-  climbing: { label: 'Climbing', icon: '🧗', tags: ['climbing', 'sport', 'mountain'], words: ['climb', 'climbing', 'rock climb', 'rock climbing', 'bouldering', 'boulder', 'crag', 'crags', 'scramble', 'scrambling', 'via ferrata', 'sport climbing', 'trad', 'trad climbing'] },
-  surfing:  { label: 'Surfing & Coast', icon: '🏄', tags: ['surfing', 'coast', 'sport'], words: ['surf', 'surfing', 'surfer', 'waves', 'swell', 'coasteer', 'coasteering', 'snorkel', 'snorkelling', 'dive', 'diving', 'sea swim'] },
-  golf:     { label: 'Golf', icon: '⛳', tags: ['golf', 'sport'], words: ['golf', 'golfer', 'golfing', 'links', 'fairway', 'tee', 'course', 'round of golf'] },
-  skiing:   { label: 'Skiing & Snow', icon: '⛷️', tags: ['skiing', 'snowboard', 'sport', 'mountain'], words: ['ski', 'skiing', 'snowboard', 'snowboarding', 'snow', 'winter sport', 'winter sports', 'piste', 'slopes', 'slope'] },
+  castles:  { icon: '🏰', tags: ['castle'], words: ['castle', 'castles', 'fortress', 'fort', 'palace', 'palaces', 'ruin', 'ruins', 'zamek', 'zamki', 'zamkow', 'zamkach', 'twierdza', 'twierdze', 'palac', 'palace', 'ruiny', 'forteca', 'warownia'] },
+  history:  { icon: '📜', tags: ['history', 'ancient', 'royal'], words: ['history', 'historic', 'historical', 'heritage', 'battlefield', 'battle', 'medieval', 'ancient', 'abbey', 'monument', 'jacobite', 'clan', 'clans', 'viking', 'stones', 'standing stones', 'historia', 'historie', 'historyczne', 'historyczny', 'dziedzictwo', 'pole bitwy', 'bitwa', 'bitwy', 'sredniowiecze', 'sredniowieczne', 'starozytne', 'opactwo', 'pomnik', 'jakobici', 'klan', 'klany', 'wikingowie', 'kamienie'] },
+  whisky:   { icon: '🥃', tags: ['whisky'], words: ['whisky', 'whiskey', 'distillery', 'distilleries', 'dram', 'drams', 'scotch', 'speyside', 'malt', 'malts', 'destylarnia', 'destylarnie', 'destylarni', 'gorzelnia', 'gorzelnie', 'slod', 'trunek', 'trunki'] },
+  hiking:   { icon: '🥾', tags: ['hiking', 'mountain'], words: ['hike', 'hikes', 'hiking', 'walk', 'walks', 'walking', 'trek', 'trekking', 'munro', 'munros', 'mountain', 'mountains', 'climb', 'climbing', 'summit', 'summits', 'trail', 'trails', 'ramble', 'wedrowka', 'wedrowki', 'wedrowek', 'piesze', 'piechota', 'szlak', 'szlaki', 'gory', 'gorskie', 'gorski', 'szczyt', 'szczyty', 'spacer', 'spacery', 'chodzenie'] },
+  nature:   { icon: '🌿', tags: ['nature', 'waterfall', 'forest', 'scenic'], words: ['nature', 'outdoors', 'scenery', 'scenic', 'landscape', 'landscapes', 'waterfall', 'waterfalls', 'forest', 'forests', 'glen', 'glens', 'gorge', 'wilderness', 'wild', 'przyroda', 'natura', 'krajobraz', 'krajobrazy', 'widoki', 'wodospad', 'wodospady', 'las', 'lasy', 'dolina', 'doliny', 'wawoz', 'dzicz', 'dzika'] },
+  lochs:    { icon: '🌊', tags: ['loch'], words: ['loch', 'lochs', 'lake', 'lakes', 'jezioro', 'jeziora', 'jezior', 'jeziorko'] },
+  islands:  { icon: '⛴️', tags: ['island'], words: ['island', 'islands', 'isle', 'isles', 'skye', 'mull', 'arran', 'staffa', 'hebrides', 'ferry', 'ferries', 'wyspa', 'wyspy', 'wysp', 'hebrydy', 'prom', 'promy'] },
+  city:     { icon: '🏙️', tags: ['city', 'culture', 'art'], words: ['city', 'cities', 'urban', 'museum', 'museums', 'gallery', 'galleries', 'art', 'shopping', 'nightlife', 'culture', 'cultural', 'architecture', 'music', 'miasto', 'miasta', 'miejskie', 'muzeum', 'muzea', 'galeria', 'galerie', 'sztuka', 'zakupy', 'nocne zycie', 'kultura', 'kulturalne', 'architektura', 'muzyka'] },
+  food:     { icon: '🦞', tags: ['food', 'village'], words: ['food', 'foodie', 'eat', 'eating', 'restaurant', 'restaurants', 'seafood', 'haggis', 'culinary', 'pub', 'pubs', 'chips', 'gastro', 'cuisine', 'jedzenie', 'kuchnia', 'restauracja', 'restauracje', 'owoce morza', 'puby', 'kulinarne', 'smaki', 'lokalne jedzenie'] },
+  coast:    { icon: '🏖️', tags: ['coast', 'beach', 'lighthouse'], words: ['coast', 'coastal', 'beach', 'beaches', 'sea', 'seaside', 'cliff', 'cliffs', 'lighthouse', 'lighthouses', 'shore', 'sunset', 'sunsets', 'wybrzeze', 'plaza', 'plaze', 'plazy', 'morze', 'nadmorskie', 'klif', 'klify', 'latarnia', 'latarnie', 'brzeg', 'zachod slonca', 'zachody slonca'] },
+  wildlife: { icon: '🦌', tags: ['wildlife', 'stargazing'], words: ['wildlife', 'animal', 'animals', 'bird', 'birds', 'birdwatching', 'puffin', 'puffins', 'deer', 'seal', 'seals', 'dolphin', 'dolphins', 'eagle', 'eagles', 'stargazing', 'stars', 'dark sky', 'dzika przyroda', 'zwierzeta', 'ptaki', 'maskonur', 'maskonury', 'jelenie', 'foki', 'delfiny', 'orly', 'gwiazdy', 'obserwacja gwiazd', 'ciemne niebo'] },
+  mystery:  { icon: '🔮', tags: ['mystery', 'folklore', 'film'], words: ['mystery', 'mysteries', 'myth', 'myths', 'legend', 'legends', 'legendary', 'folklore', 'ghost', 'ghosts', 'haunted', 'nessie', 'monster', 'fairy', 'fairies', 'outlander', 'harry potter', 'potter', 'braveheart', 'film', 'films', 'movie', 'movies', 'tajemnica', 'tajemnice', 'mit', 'mity', 'legenda', 'legendy', 'folklor', 'duch', 'duchy', 'nawiedzone', 'potwor', 'wrozki', 'filmy', 'filmowe'] },
+  family:   { icon: '🧸', tags: ['family'], words: ['family', 'kid', 'kids', 'children', 'child', 'toddler', 'toddlers', 'rodzina', 'rodzinne', 'rodzinna', 'dzieci', 'dziecko', 'maluchy'] },
+  driving:  { icon: '🛞', tags: ['drive', 'scenic', 'views'], words: ['drive', 'drives', 'driving', 'road trip', 'roads', 'nc500', 'north coast 500', 'viewpoint', 'viewpoints', 'photography', 'photo', 'photos', 'instagram', 'przejazdzka', 'jazda', 'samochodem', 'trasa', 'trasy', 'punkt widokowy', 'punkty widokowe', 'fotografia', 'zdjecia'] },
+  kayaking: { icon: '🛶', tags: ['kayaking', 'watersports', 'river', 'sea'], words: ['kayak', 'kayaking', 'kayaks', 'canoe', 'canoeing', 'paddle', 'paddling', 'white water', 'whitewater', 'raft', 'rafting', 'river', 'rivers', 'watersport', 'watersports', 'water sport', 'water sports', 'rowing', 'kajak', 'kajaki', 'kajakiem', 'kajakarstwo', 'kanu', 'wioslowanie', 'rzeka', 'rzeki', 'sporty wodne', 'splyw', 'splywy'] },
+  wildswim: { icon: '🏊', tags: ['wildswim', 'waterfall', 'loch', 'river'], words: ['wild swim', 'wild swimming', 'wildswim', 'swim', 'swimming', 'dip', 'dipping', 'plunge', 'open water', 'cold water', 'natural pool', 'swimming hole', 'dzikie plywanie', 'plywanie', 'morsowanie', 'kapiel', 'kapiele', 'zimna woda', 'naturalny basen'] },
+  cycling:  { icon: '🚵', tags: ['cycling', 'biking', 'sport'], words: ['bike', 'biking', 'cycle', 'cycling', 'mountain bike', 'mountain biking', 'mtb', 'downhill', 'trail', 'trails', 'gravel', 'road cycling', 'velodrome', 'rower', 'rowery', 'rowerem', 'rowerowe', 'kolarstwo', 'rower gorski', 'zjazd', 'sciezki'] },
+  climbing: { icon: '🧗', tags: ['climbing', 'sport', 'mountain'], words: ['climb', 'climbing', 'rock climb', 'rock climbing', 'bouldering', 'boulder', 'crag', 'crags', 'scramble', 'scrambling', 'via ferrata', 'sport climbing', 'trad', 'trad climbing', 'wspinaczka', 'wspinaczke', 'wspinanie', 'skalki', 'skala', 'skaly', 'gran', 'granie'] },
+  surfing:  { icon: '🏄', tags: ['surfing', 'coast', 'sport'], words: ['surf', 'surfing', 'surfer', 'waves', 'swell', 'coasteer', 'coasteering', 'snorkel', 'snorkelling', 'dive', 'diving', 'sea swim', 'fale', 'nurkowanie', 'snorkeling', 'deska'] },
+  golf:     { icon: '⛳', tags: ['golf', 'sport'], words: ['golf', 'golfer', 'golfing', 'links', 'fairway', 'tee', 'course', 'round of golf', 'golfa', 'golfie', 'pole golfowe', 'pola golfowe'] },
+  skiing:   { icon: '⛷️', tags: ['skiing', 'snowboard', 'sport', 'mountain'], words: ['ski', 'skiing', 'snowboard', 'snowboarding', 'snow', 'winter sport', 'winter sports', 'piste', 'slopes', 'slope', 'narty', 'narciarstwo', 'nartach', 'snieg', 'sporty zimowe', 'stok', 'stoki'] },
 };
 
 // Region bias: phrases that pull the plan toward certain regions.
 export const REGION_HINTS = [
-  { words: ['west coast', 'western'], regions: ['Argyll & the Isles', 'Isle of Skye', 'Highlands'] },
-  { words: ['north coast', 'nc500', 'north coast 500', 'far north'], regions: ['North Coast 500'] },
+  { words: ['west coast', 'western', 'zachodnie wybrzeze', 'zachodnim wybrzezu', 'zachod'], regions: ['Argyll & the Isles', 'Isle of Skye', 'Highlands'] },
+  { words: ['north coast', 'nc500', 'north coast 500', 'far north', 'polnocne wybrzeze', 'polnocnym wybrzezu', 'daleka polnoc'], regions: ['North Coast 500'] },
   { words: ['skye'], regions: ['Isle of Skye'] },
   { words: ['speyside'], regions: ['Speyside & Moray'] },
   { words: ['cairngorm', 'cairngorms'], regions: ['Cairngorms'] },
-  { words: ['borders', 'south', 'galloway'], regions: ['Scottish Borders', 'Dumfries & Galloway'] },
+  { words: ['borders', 'south', 'galloway', 'pogranicze', 'poludnie', 'poludniu'], regions: ['Scottish Borders', 'Dumfries & Galloway'] },
   { words: ['fife'], regions: ['Fife & Dundee'] },
-  { words: ['highland', 'highlands'], regions: ['Highlands', 'Loch Ness & Inverness', 'North Coast 500', 'Cairngorms'] },
+  { words: ['highland', 'highlands', 'gory szkockie', 'wyzyny'], regions: ['Highlands', 'Loch Ness & Inverness', 'North Coast 500', 'Cairngorms'] },
 ];
 
 export const LEVELS = {
   // XP needed to go from level n to n+1.
   needFor(level) { return 100 + level * 50; },
-  titles: [
-    'Wanderer', 'Stroller', 'Rambler', 'Explorer', 'Pathfinder',
-    'Trailblazer', 'Munro Bagger', 'Highlander', 'Clan Chieftain',
-    'Laird o’ the Roads', 'Legend of Alba',
-  ],
-  titleFor(level) { return this.titles[Math.min(level - 1, this.titles.length - 1)]; },
   // Returns { level, into, need } for a total XP amount.
   fromXP(xp) {
     let level = 1; let rest = xp;
@@ -213,23 +217,23 @@ export const XP_EVENTS = {
 };
 
 export const ACHIEVEMENTS = [
-  { id: 'first-quest',      name: 'The First Step',     icon: '🗺️', xp: 50,  desc: 'Create your first roadtrip quest.',            check: s => s.tripsCreated >= 1 },
-  { id: 'quest-collector',  name: 'Serial Planner',     icon: '📋', xp: 75,  desc: 'Create 3 roadtrip quests.',                    check: s => s.tripsCreated >= 3 },
-  { id: 'boots-on',         name: 'Boots on the Ground',icon: '🥾', xp: 25,  desc: 'Mark your first location as visited.',          check: s => s.visitedCount >= 1 },
-  { id: 'wee-wanderer',     name: 'Wee Wanderer',       icon: '🌿', xp: 50,  desc: 'Visit 5 locations.',                            check: s => s.visitedCount >= 5 },
-  { id: 'seasoned-rambler', name: 'Seasoned Rambler',   icon: '🎒', xp: 100, desc: 'Visit 15 locations.',                           check: s => s.visitedCount >= 15 },
-  { id: 'true-highlander',  name: 'True Highlander',    icon: '⛰️', xp: 200, desc: 'Visit 30 locations.',                           check: s => s.visitedCount >= 30 },
-  { id: 'storm-the-castle', name: 'Storm the Castle',   icon: '🏰', xp: 40,  desc: 'Visit your first castle.',                      check: s => s.castles >= 1 },
-  { id: 'keeper-of-keeps',  name: 'Keeper of Keeps',    icon: '👑', xp: 100, desc: 'Visit 5 castles.',                              check: s => s.castles >= 5 },
-  { id: 'first-dram',       name: 'The First Dram',     icon: '🥃', xp: 40,  desc: 'Visit a whisky distillery.',                    check: s => s.distilleries >= 1 },
-  { id: 'whisky-sage',      name: 'Whisky Sage',        icon: '🛢️', xp: 100, desc: 'Visit 3 whisky locations.',                     check: s => s.distilleries >= 3 },
-  { id: 'loch-collector',   name: 'Loch Collector',     icon: '🌊', xp: 75,  desc: 'Visit 3 lochs.',                                check: s => s.lochs >= 3 },
-  { id: 'peak-bagger',      name: 'Peak Bagger',        icon: '🏔️', xp: 75,  desc: 'Summit a mountain hike.',                       check: s => s.peaks >= 1 },
-  { id: 'island-hopper',    name: 'Island Hopper',      icon: '⛴️', xp: 60,  desc: 'Visit an island location.',                     check: s => s.islands >= 1 },
-  { id: 'nessie-hunter',    name: 'Nessie Hunter',      icon: '🦕', xp: 60,  desc: 'Pay your respects at Loch Ness.',               check: s => s.visitedIds.includes('urquhart-loch-ness') },
-  { id: 'full-circle',      name: 'Full Circle',        icon: '🏁', xp: 150, desc: 'Complete every stop on a roadtrip.',            check: s => s.tripsCompleted >= 1 },
-  { id: 'compass-rose',     name: 'Compass Rose',       icon: '🧭', xp: 100, desc: 'Explore 5 different regions of Scotland.',      check: s => s.regions >= 5 },
-  { id: 'local-legend',     name: 'Local Legend',       icon: '⭐', xp: 100, desc: 'Reach level 5.',                                check: s => s.level >= 5 },
+  { id: 'first-quest',      icon: '🗺️', xp: 50,  check: s => s.tripsCreated >= 1 },
+  { id: 'quest-collector',  icon: '📋', xp: 75,  check: s => s.tripsCreated >= 3 },
+  { id: 'boots-on',         icon: '🥾', xp: 25,  check: s => s.visitedCount >= 1 },
+  { id: 'wee-wanderer',     icon: '🌿', xp: 50,  check: s => s.visitedCount >= 5 },
+  { id: 'seasoned-rambler', icon: '🎒', xp: 100, check: s => s.visitedCount >= 15 },
+  { id: 'true-highlander',  icon: '⛰️', xp: 200, check: s => s.visitedCount >= 30 },
+  { id: 'storm-the-castle', icon: '🏰', xp: 40,  check: s => s.castles >= 1 },
+  { id: 'keeper-of-keeps',  icon: '👑', xp: 100, check: s => s.castles >= 5 },
+  { id: 'first-dram',       icon: '🥃', xp: 40,  check: s => s.distilleries >= 1 },
+  { id: 'whisky-sage',      icon: '🛢️', xp: 100, check: s => s.distilleries >= 3 },
+  { id: 'loch-collector',   icon: '🌊', xp: 75,  check: s => s.lochs >= 3 },
+  { id: 'peak-bagger',      icon: '🏔️', xp: 75,  check: s => s.peaks >= 1 },
+  { id: 'island-hopper',    icon: '⛴️', xp: 60,  check: s => s.islands >= 1 },
+  { id: 'nessie-hunter',    icon: '🦕', xp: 60,  check: s => s.visitedIds.includes('urquhart-loch-ness') },
+  { id: 'full-circle',      icon: '🏁', xp: 150, check: s => s.tripsCompleted >= 1 },
+  { id: 'compass-rose',     icon: '🧭', xp: 100, check: s => s.regions >= 5 },
+  { id: 'local-legend',     icon: '⭐', xp: 100, check: s => s.level >= 5 },
 ];
 
 // Seed players for the leaderboard (prototype: static rivals).
@@ -243,15 +247,6 @@ export const RIVALS = [
   { name: 'KiltedCallum',    xp: 1245, visited: 11, trips: 2, colour: '#9ecf6a' },
   { name: 'BonnieVoyager',   xp: 760,  visited: 7,  trips: 1, colour: '#e0876f' },
   { name: 'FirstTimer_Tom',  xp: 230,  visited: 2,  trips: 1, colour: '#8a93a6' },
-];
-
-export const EXAMPLE_PROMPTS = [
-  'I\'m really into kayaking — show me the best Scottish rivers and sea routes',
-  '5 days of highland castles and whisky distilleries from Inverness',
-  'Weekend mountain biking and wild swimming in the Cairngorms',
-  'I love rock climbing — 3 days of crags and scrambles',
-  'Family road trip: wildlife, beaches and castles on the west coast',
-  'Surfing, seafood and sunsets on the north coast',
 ];
 
 export const POI_BY_ID = Object.fromEntries(POIS.map(p => [p.id, p]));

@@ -4,6 +4,7 @@
 
 import { ACHIEVEMENTS, LEVELS, POI_BY_ID } from './data.js';
 import { store } from './store.js';
+import { t, levelTitle, achievementName, achievementDesc, poiName } from './i18n.js';
 
 // Quiet mode suppresses toasts/overlays (used when seeding demo data).
 let quiet = false;
@@ -38,18 +39,32 @@ export function userStats(user) {
 
 // ---- XP / levels ----
 
-function logActivity(user, icon, text, xp) {
-  user.activity.unshift({ at: Date.now(), icon, text, xp });
+function logActivity(user, icon, key, params, xp) {
+  user.activity.unshift({ at: Date.now(), icon, key, params, xp });
   user.activity = user.activity.slice(0, 30);
 }
 
+/**
+ * Render an activity entry in the active language. Entries store a
+ * translation key plus stable identifiers (poiId / achId) rather than
+ * finished prose, so the feed follows a language switch. Entries saved
+ * by older builds keep their literal `text`.
+ */
+export function activityText(entry) {
+  if (!entry.key) return entry.text || '';
+  const params = { ...entry.params };
+  if (params.achId) params.name = achievementName(params.achId);
+  if (params.poiId && POI_BY_ID[params.poiId]) params.name = poiName(POI_BY_ID[params.poiId]);
+  return t(entry.key, params);
+}
+
 /** Award XP, show toasts, detect level-ups. Returns events for the UI. */
-export function awardXP(user, amount, label, icon = '✨') {
+export function awardXP(user, amount, key, params, icon = '✨') {
   const before = LEVELS.fromXP(user.xp).level;
   user.xp = Math.max(0, user.xp + amount);
   const after = LEVELS.fromXP(user.xp).level;
-  if (amount !== 0) logActivity(user, icon, label, amount);
-  if (amount > 0 && !quiet) toastXP(amount, label, icon);
+  if (amount !== 0) logActivity(user, icon, key, params, amount);
+  if (amount > 0 && !quiet) toastXP(amount, activityText({ key, params }), icon);
   if (after > before && !quiet) celebrateLevelUp(after);
   store.save();
   return { leveledUp: after > before, level: after };
@@ -67,7 +82,7 @@ export function evaluateAchievements(user) {
       if (!owned.has(def.id) && def.check(stats)) {
         user.achievements.push({ id: def.id, at: Date.now() });
         unlockedNow.push(def);
-        logActivity(user, def.icon, `Achievement unlocked: ${def.name}`, def.xp);
+        logActivity(user, def.icon, 'badges.logged', { achId: def.id }, def.xp);
         user.xp += def.xp;
         any = true;
       }
@@ -111,7 +126,7 @@ function pushToast(el, life = 3400) {
 export function toastXP(amount, label, icon = '✨') {
   const el = document.createElement('div');
   el.className = 'toast toast-xp';
-  el.innerHTML = `<span class="t-icon">${icon}</span><span class="t-text">${label}</span><span class="t-amount">+${amount} XP</span>`;
+  el.innerHTML = `<span class="t-icon">${icon}</span><span class="t-text">${label}</span><span class="t-amount">+${amount} ${t('unit.xp')}</span>`;
   pushToast(el, 2800);
 }
 
@@ -121,9 +136,9 @@ export function toastAchievement(def) {
   el.innerHTML = `
     <div class="t-shield">${def.icon}</div>
     <div class="t-body">
-      <div class="t-kicker">Achievement unlocked</div>
-      <div class="t-name">${def.name}</div>
-      <div class="t-desc">${def.desc} <b>+${def.xp} XP</b></div>
+      <div class="t-kicker">${t('badges.toastKicker')}</div>
+      <div class="t-name">${achievementName(def.id)}</div>
+      <div class="t-desc">${achievementDesc(def.id)} <b>+${def.xp} ${t('unit.xp')}</b></div>
     </div>`;
   pushToast(el, 4600);
   burstConfetti(26);
@@ -144,10 +159,10 @@ export function celebrateLevelUp(level) {
   overlay.innerHTML = `
     <div class="levelup-card">
       <div class="lu-rays"></div>
-      <div class="lu-kicker">LEVEL UP</div>
+      <div class="lu-kicker">${t('level.up')}</div>
       <div class="lu-level">${level}</div>
-      <div class="lu-title">${LEVELS.titleFor(level)}</div>
-      <button class="btn btn-primary lu-close">Onwards! →</button>
+      <div class="lu-title">${levelTitle(level)}</div>
+      <button class="btn btn-primary lu-close">${t('level.onwards')}</button>
     </div>`;
   document.body.appendChild(overlay);
   requestAnimationFrame(() => overlay.classList.add('show'));

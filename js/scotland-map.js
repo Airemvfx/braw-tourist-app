@@ -4,6 +4,8 @@
 // markers are projected from real lat/lon coordinates.
 // ============================================================
 
+import { t, poiName, regionName, cityName } from './i18n.js';
+
 const BOUNDS = { lonMin: -7.4, lonMax: -1.4, latMin: 54.5, latMax: 58.85 };
 const W = 560;
 const H = 730;
@@ -83,13 +85,13 @@ export function renderMap(stops = [], start = null, userPos = null, opts = {}) {
       const [x, y] = project(s.poi.lon, s.poi.lat);
       const visited = s.visited;
       return `
-      <g class="map-marker ${visited ? 'is-visited' : ''}" data-poi="${s.poi.id}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})" tabindex="0" role="button" aria-label="${esc(s.poi.name)}">
+      <g class="map-marker ${visited ? 'is-visited' : ''}" data-poi="${s.poi.id}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})" tabindex="0" role="button" aria-label="${esc(poiName(s.poi))}">
         <circle class="marker-halo" r="13"></circle>
         <circle class="marker-dot" r="9.5"></circle>
         ${visited
           ? `<path class="marker-check" d="M-4,0.5 L-1.2,3.4 L4.4,-3" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path>`
           : `<text class="marker-num" y="3.6" text-anchor="middle">${s.order}</text>`}
-        <title>${esc(`${s.order}. ${s.poi.name} — ${s.poi.region}${visited ? ' ✓ visited' : ''}`)}</title>
+        <title>${esc(`${s.order}. ${poiName(s.poi)} — ${regionName(s.poi.region)}${visited ? t('map.markerVisited') : ''}`)}</title>
       </g>`;
     })
     .join('');
@@ -101,8 +103,8 @@ export function renderMap(stops = [], start = null, userPos = null, opts = {}) {
         <g class="map-start" transform="translate(${x.toFixed(1)},${y.toFixed(1)})">
           <circle r="5.5" class="start-dot"></circle>
           <circle r="11" class="start-ring"></circle>
-          <text y="-15" text-anchor="middle" class="start-label">${esc(start.name.toUpperCase())} · START</text>
-          <title>Start: ${esc(start.name)}</title>
+          <text y="-15" text-anchor="middle" class="start-label">${esc(cityName(start.name).toUpperCase())} · ${t('map.start')}</text>
+          <title>${esc(t('map.startTitle', { name: cityName(start.name) }))}</title>
         </g>`;
       })()
     : '';
@@ -122,13 +124,13 @@ export function renderMap(stops = [], start = null, userPos = null, opts = {}) {
           <circle class="ul-accuracy" r="${accR.toFixed(1)}"/>
           <circle class="ul-pulse" r="9"/>
           <circle class="ul-dot" r="5.5"/>
-          <title>Your location (±${Math.round(userPos.accuracy || 0)}m)</title>
+          <title>${esc(t('map.yourLocation', { n: Math.round(userPos.accuracy || 0) }))}</title>
         </g>`;
       })()
     : '';
 
   return `
-  <svg class="scotmap" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Map of Scotland with roadtrip stops">
+  <svg class="scotmap" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${esc(t('map.aria'))}">
     <defs>
       <radialGradient id="seaGlow" cx="30%" cy="20%" r="90%">
         <stop offset="0%" stop-color="rgba(62,224,143,0.07)"/>
@@ -151,8 +153,8 @@ export function renderMap(stops = [], start = null, userPos = null, opts = {}) {
       ${[...Array(9)].map((_, i) => `<line x1="0" y1="${(i + 1) * (H / 10)}" x2="${W}" y2="${(i + 1) * (H / 10)}"/>`).join('')}
     </g>
 
-    <text class="sea-label" x="60" y="200" transform="rotate(-12 60 200)">A T L A N T I C</text>
-    <text class="sea-label" x="${W - 150}" y="330" transform="rotate(8 ${W - 150} 330)">N O R T H&#160;&#160;S E A</text>
+    <text class="sea-label" x="60" y="200" transform="rotate(-12 60 200)">${t('map.atlantic')}</text>
+    <text class="sea-label" x="${W - 150}" y="330" transform="rotate(8 ${W - 150} 330)">${t('map.northSea')}</text>
 
     <g class="map-land">
       ${landRings.map(d => `<path d="${d}"/>`).join('')}
