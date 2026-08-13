@@ -41,7 +41,12 @@ function enterApp() {
   $('#auth-screen').hidden = true;
   $('#app-screen').hidden = false;
   renderHeader();
-  switchView(user.trips.length ? 'trips' : 'plan');
+  switchView(homeView());
+}
+
+/** Landing view: your quests if you have any, otherwise the planner. */
+function homeView() {
+  return user && user.trips.length ? 'trips' : 'plan';
 }
 
 // ============================================================
@@ -177,6 +182,7 @@ function switchView(name) {
 
 function wireNav() {
   $$('.nav-btn').forEach(b => b.addEventListener('click', () => switchView(b.dataset.view)));
+  $('#home-btn').addEventListener('click', () => { openTripId = null; switchView(homeView()); });
   $('#logout-btn').addEventListener('click', () => {
     store.logout();
     user = null; draftTrip = null; openTripId = null;

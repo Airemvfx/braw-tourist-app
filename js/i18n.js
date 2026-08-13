@@ -72,6 +72,7 @@ const EN = {
   'nav.profile': 'Profile',
   'nav.signOut': 'Sign out',
   'nav.language': 'Language',
+  'nav.home': 'Back to home',
   'hdr.level': 'LVL {level}',
   'hdr.xp': '{into} / {need} XP',
 
@@ -331,6 +332,7 @@ const PL = {
   'nav.profile': 'Profil',
   'nav.signOut': 'Wyloguj się',
   'nav.language': 'Język',
+  'nav.home': 'Powrót do strony głównej',
   'hdr.level': 'POZ. {level}',
   'hdr.xp': '{into} / {need} PD',
 

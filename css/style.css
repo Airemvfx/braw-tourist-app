@@ -34,6 +34,10 @@
   --border-strong: rgba(200,170,110,0.28);
   --border-active: rgba(200,170,110,0.55);
 
+  /* Motion */
+  --ease-out: cubic-bezier(0.22, 0.80, 0.28, 1);
+  --ease-pop: cubic-bezier(0.20, 0.90, 0.30, 1.25);
+
   /* Typography */
   --font-display: 'Cormorant Garant', Georgia, serif;
   --font-ui:      'Outfit', 'Segoe UI', sans-serif;
@@ -341,11 +345,25 @@ small { font-size: 0.78em; }
   position: sticky; top: 0; z-index: 50;
 }
 
-.hdr-brand { display: flex; align-items: baseline; gap: 0.55rem; flex-shrink: 0; }
+/* The wordmark doubles as the home button, so it is a real <button>:
+   keyboard focus and Enter/Space come for free. */
+.hdr-brand {
+  display: flex; align-items: baseline; gap: 0.55rem; flex-shrink: 0;
+  background: none; border: 0; font: inherit; color: inherit;
+  padding: 0.25rem 0.4rem; margin: 0 -0.4rem;
+  border-radius: 10px; cursor: pointer;
+  transition: background 0.18s, transform 0.16s var(--ease-out);
+}
+.hdr-brand:hover { background: rgba(255,255,255,0.05); }
+.hdr-brand:hover .hdr-logo { color: var(--amber-light); }
+.hdr-brand:hover .wordmark-dot { transform: scale(1.35); }
+.hdr-brand:active { transform: scale(0.96); }
 .hdr-logo {
   font-family: var(--font-display);
   font-weight: 700; font-size: 1.55rem; letter-spacing: -0.02em;
+  transition: color 0.18s;
 }
+.hdr-brand .wordmark-dot { display: inline-block; transition: transform 0.24s var(--ease-pop); }
 .hdr-scope {
   font-family: var(--font-mono); font-size: 0.58rem; font-weight: 500;
   letter-spacing: 0.2em; text-transform: uppercase;
@@ -944,6 +962,113 @@ small { font-size: 0.78em; }
 /* ============================================================
    RESPONSIVE
    ============================================================ */
+/* ============================================================
+   Interaction & motion
+   Press feedback applies everywhere; lift-on-hover is gated behind
+   `hover: hover` because on touch screens :hover latches after a tap
+   and would leave elements stuck in their hovered state.
+   ============================================================ */
+
+/* ---- keyboard focus ---- */
+.btn:focus-visible, .nav-btn:focus-visible, .chip:focus-visible,
+.trip-card:focus-visible, .visit-btn:focus-visible, .icon-btn:focus-visible,
+.hdr-brand:focus-visible, .auth-tab:focus-visible, .back-link:focus-visible,
+.map-marker:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 3px;
+}
+
+/* ---- press feedback (all pointer types) ---- */
+.btn { transition: transform 0.14s var(--ease-out), box-shadow 0.18s var(--ease-out), background 0.18s, color 0.18s, border-color 0.18s; }
+.btn:active { transform: translateY(1px) scale(0.98); }
+.btn-primary:active { box-shadow: 0 2px 10px rgba(201,138,64,0.28); }
+
+.nav-btn:active   { transform: scale(0.95); }
+.lang-btn:active  { transform: scale(0.92); }
+.icon-btn:active  { transform: scale(0.9); }
+.chip:active      { transform: translateY(0) scale(0.97); }
+.auth-tab:active  { transform: scale(0.97); }
+.trip-card:active { transform: translateY(-1px) scale(0.99); }
+.badge:active     { transform: translateY(-1px) scale(0.99); }
+.stat:active      { transform: translateY(-1px) scale(0.99); }
+
+.nav-btn, .auth-tab { transition: color 0.18s, background 0.18s, border-color 0.18s, transform 0.14s var(--ease-out); }
+.icon-btn { transition: color 0.15s, border-color 0.15s, background 0.15s, transform 0.14s var(--ease-out); }
+.chip     { transition: color 0.18s, background 0.18s, border-color 0.18s, box-shadow 0.18s, transform 0.14s var(--ease-out); }
+.badge    { transition: transform 0.2s var(--ease-out), box-shadow 0.2s, opacity 0.2s, border-color 0.2s; }
+.stat     { transition: transform 0.18s var(--ease-out), border-color 0.18s, box-shadow 0.18s; }
+.stop     { transition: border-color 0.2s, background 0.2s, transform 0.18s var(--ease-out); }
+.back-link { transition: color 0.18s, transform 0.16s var(--ease-out); }
+.lb-row:not(.lb-head) { transition: background 0.18s, transform 0.16s var(--ease-out); }
+
+/* Icons that react to their parent */
+.tc-icon, .stat-icon, .badge-shield { transition: transform 0.26s var(--ease-pop); }
+.tc-icon, .stat-icon { display: inline-block; }
+
+/* SVG markers: cx/cy are 0 inside the translated group, so plain
+   scale() already grows them about their own centre. */
+.map-marker .marker-dot, .map-marker .marker-num { transition: transform 0.18s var(--ease-pop); }
+.map-marker:active .marker-dot { transform: scale(0.94); }
+
+/* ---- hover, pointing devices only ---- */
+@media (hover: hover) {
+  .btn-ghost:hover  { transform: translateY(-1px); }
+  .nav-btn:hover    { transform: translateY(-1px); }
+  .icon-btn:hover   { transform: translateY(-1px); }
+  .chip:hover       { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,0.34); }
+  .back-link:hover  { transform: translateX(-3px); }
+
+  .trip-card:hover .tc-icon { transform: scale(1.14) rotate(-6deg); }
+
+  .stop:hover { background: rgba(0,0,0,0.3); transform: translateX(3px); }
+
+  .badge.locked:hover { opacity: 0.62; transform: translateY(-2px); }
+  .badge.unlocked:hover .badge-shield { transform: scale(1.07) translateY(-2px); }
+
+  .stat:hover { transform: translateY(-3px); border-color: var(--border-strong); box-shadow: 0 12px 28px rgba(0,0,0,0.4); }
+  .stat:hover .stat-icon { transform: scale(1.16); }
+
+  .lb-row:not(.lb-head):hover { background: rgba(201,138,64,0.08); transform: translateX(3px); }
+
+  .map-marker:hover .marker-dot { transform: scale(1.18); }
+}
+
+/* Touch screens: neutralise lift effects that would otherwise latch. */
+@media (hover: none) {
+  .trip-card:hover, .badge.unlocked:hover, .stat:hover { transform: none; box-shadow: var(--shadow); }
+}
+
+/* ---- entrance ---- */
+@keyframes view-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes card-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+/* `backwards`, not `both`: it still hides the element through the stagger
+   delay, but releases the property once the animation ends. With `both`
+   the final keyframe's `transform: none` would persist and outrank the
+   :hover rules below, silently killing the lift on every animated card. */
+.app-main > section:not([hidden]) { animation: view-in 0.3s var(--ease-out) backwards; }
+.trips-grid > .trip-card, .badges-grid > .badge, .stat-grid > .stat {
+  animation: card-in 0.32s var(--ease-out) backwards;
+}
+/* Short stagger so a grid resolves as a wave rather than a single slab. */
+.trips-grid > *:nth-child(1),  .badges-grid > *:nth-child(1),  .stat-grid > *:nth-child(1)  { animation-delay: 0.00s; }
+.trips-grid > *:nth-child(2),  .badges-grid > *:nth-child(2),  .stat-grid > *:nth-child(2)  { animation-delay: 0.03s; }
+.trips-grid > *:nth-child(3),  .badges-grid > *:nth-child(3),  .stat-grid > *:nth-child(3)  { animation-delay: 0.06s; }
+.trips-grid > *:nth-child(4),  .badges-grid > *:nth-child(4),  .stat-grid > *:nth-child(4)  { animation-delay: 0.09s; }
+.trips-grid > *:nth-child(5),  .badges-grid > *:nth-child(5),  .stat-grid > *:nth-child(5)  { animation-delay: 0.12s; }
+.trips-grid > *:nth-child(6),  .badges-grid > *:nth-child(6),  .stat-grid > *:nth-child(6)  { animation-delay: 0.15s; }
+.trips-grid > *:nth-child(n+7), .badges-grid > *:nth-child(n+7), .stat-grid > *:nth-child(n+7) { animation-delay: 0.18s; }
+
+/* ---- respect the OS reduced-motion preference ---- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 @media (max-width: 980px) {
   .auth-split { grid-template-columns: 1fr; }
   .auth-brand { padding: 2.5rem; min-height: 38vh; }
