@@ -15,6 +15,8 @@
 // images/manifest.json. See that file for the expected shape.
 // ============================================================
 
+import { getLang } from './i18n.js';
+
 const MANIFEST = 'images/manifest.json';
 const SLIDE_MS = 5200;
 
@@ -24,17 +26,41 @@ let slide = 0;
 
 const reduceMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+/** Resolve a caption that may be a plain string or {en, pl}. */
+export function captionOf(photo) {
+  const c = photo.caption;
+  if (!c) return '';
+  return typeof c === 'string' ? c : (c[getLang()] || c.en || '');
+}
+
+/** True once the browser can actually decode this URL. */
+function loads(src) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => resolve(true);
+    img.onerror = () => resolve(false);
+    img.src = src;
+  });
+}
+
 /**
- * Load the manifest. Resolves to [] on any failure — a missing file is
- * the normal state before photos are added, not an error worth surfacing.
+ * Load the manifest, keeping only entries whose file actually loads.
+ *
+ * The verification matters: the manifest can list photos before the files
+ * are committed, or carry a typo, and a broken <img> on the landing page
+ * is worse than no carousel at all. Resolves to [] on any failure — a
+ * missing manifest is the normal state before photos are added, not an
+ * error worth surfacing.
  */
 export async function loadPhotos() {
   try {
     const res = await fetch(MANIFEST, { cache: 'no-cache' });
     if (!res.ok) return (photos = []);
     const data = await res.json();
-    const list = Array.isArray(data) ? data : data.images;
-    photos = (list || []).filter(p => p && p.src);
+    const list = (Array.isArray(data) ? data : data.images) || [];
+    const candidates = list.filter(p => p && p.src);
+    const ok = await Promise.all(candidates.map(p => loads(encodeURI(p.src))));
+    photos = candidates.filter((_, i) => ok[i]);
   } catch {
     photos = [];
   }
@@ -59,7 +85,7 @@ export function mountCarousel(el) {
         <figure class="ph-slide ${i === 0 ? 'is-on' : ''}">
           <img src="${encodeURI(p.src)}" alt="${(p.alt || '').replace(/"/g, '&quot;')}"
                loading="${i === 0 ? 'eager' : 'lazy'}" decoding="async">
-          ${p.caption ? `<figcaption>${p.caption.replace(/</g, '&lt;')}</figcaption>` : ''}
+          ${captionOf(p) ? `<figcaption>${captionOf(p).replace(/</g, '&lt;')}</figcaption>` : ''}
         </figure>`).join('')}
     </div>
     <div class="ph-dots" role="tablist">

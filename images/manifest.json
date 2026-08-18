@@ -1,4 +1,30 @@
 {
-  "_comment": "Original Scottish hill photography. Add files to images/ and list them here; the app picks them up automatically. See README.md. Leave images empty to disable the backdrop and carousel.",
-  "images": []
+  "_comment": "Original Scottish photography. Entries are verified at load time: any file that is not present yet is skipped silently, so this list can be filled in before the images are committed. Captions may be a plain string or {en, pl}.",
+  "images": [
+    {
+      "src": "images/skye-glen-falls.jpg",
+      "alt": "A burn falling through a gorge into a green glen, with bare hill summits beyond",
+      "caption": { "en": "Highland glen", "pl": "Górska dolina" }
+    },
+    {
+      "src": "images/skye-falls-pool.jpg",
+      "alt": "A waterfall running down granite slabs into a clear pool ringed with pink boulders",
+      "caption": { "en": "Falls and pool", "pl": "Wodospad i rozlewisko" }
+    },
+    {
+      "src": "images/skye-glen-wide.jpg",
+      "alt": "A wide glen opening between rocky peaks, heather and grass in the foreground",
+      "caption": { "en": "The open glen", "pl": "Otwarta dolina" }
+    },
+    {
+      "src": "images/skye-cotton-grass.jpg",
+      "alt": "Bog cotton blowing across a hillside with a waterfall in the distance",
+      "caption": { "en": "Bog cotton on the moor", "pl": "Wełnianka na wrzosowisku" }
+    },
+    {
+      "src": "images/portree-harbour.jpg",
+      "alt": "The painted houses of Portree harbour reflected in still water, Isle of Skye",
+      "caption": { "en": "Portree Harbour, Skye", "pl": "Port Portree, Skye" }
+    }
+  ]
 }
