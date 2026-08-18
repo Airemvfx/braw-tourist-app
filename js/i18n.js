@@ -54,6 +54,12 @@ const EN = {
   'showcase.cap4': 'Earn badges',
   'showcase.aria': 'Animated preview of a Scottish roadtrip on the BRAW map',
 
+  // ---- appearance ----
+  'theme.label': 'Appearance',
+  'theme.dark': 'Dark',
+  'theme.light': 'Light',
+  'theme.auto': 'System',
+
   'auth.stat.places': 'locations',
   'auth.stat.interests': 'interests',
   'auth.stat.badges': 'achievements',
@@ -373,6 +379,12 @@ const PL = {
   'showcase.cap3': 'Graj w gry',
   'showcase.cap4': 'Zbieraj odznaki',
   'showcase.aria': 'Animowany podgląd szkockiej wyprawy na mapie BRAW',
+
+  // ---- appearance ----
+  'theme.label': 'Wygląd',
+  'theme.dark': 'Ciemny',
+  'theme.light': 'Jasny',
+  'theme.auto': 'Systemowy',
 
   'auth.stat.places': 'miejsc',
   'auth.stat.interests': 'zainteresowań',

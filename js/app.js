@@ -4,11 +4,13 @@
 
 import { POIS, POI_BY_ID, INTERESTS, LEVELS, XP_EVENTS, ACHIEVEMENTS, RIVALS, REGIONS } from './data.js';
 import { store } from './store.js';
+import { initTheme, setMode, getMode, onThemeChange } from './theme.js';
 import { awardXP, evaluateAchievements, evaluateStamps, regionProgress, userStats, toastInfo, burstConfetti, setQuiet, activityText } from './gamification.js';
 import { generateTrip, tripProgress, tripStopIds, tripTitle, paceLabel } from './planner.js';
 import { renderMap } from './scotland-map.js';
 import { renderHero } from './hero-scene.js';
 import { renderShowcase, startShowcase, stopShowcase } from './showcase.js';
+import { loadPhotos, hasPhotos, mountBackdrop, mountCarousel, stopCarousel } from './photos-hero.js';
 import { nextQuestion, gameXPFor, recordRun, answerName } from './minigame.js';
 import { compressImage, savePhoto, getPhoto, deletePhoto, listPhotoIds } from './photos.js';
 import {
@@ -44,6 +46,7 @@ function showAuth() {
 
 function enterApp() {
   stopShowcase();                  // nothing to animate once past the door
+  stopCarousel();
   $('#auth-screen').hidden = true;
   $('#app-screen').hidden = false;
   renderHeader();
@@ -58,6 +61,18 @@ function homeView() {
 // ============================================================
 // Language
 // ============================================================
+
+function wireTheme() {
+  $$('[data-theme-mode]').forEach(btn =>
+    btn.addEventListener('click', () => setMode(btn.dataset.themeMode)));
+  const sync = () => $$('[data-theme-mode]').forEach(b => {
+    const on = b.dataset.themeMode === getMode();
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-pressed', String(on));
+  });
+  onThemeChange(sync);
+  sync();
+}
 
 function wireLanguage() {
   $$('.lang-btn').forEach(btn =>
@@ -952,6 +967,13 @@ function renderLanding() {
   $('#hero-art').innerHTML = renderHero();
   $('#sc-map').innerHTML = renderShowcase();
   startShowcase($('#sc-caption'));
+  // Photos are optional; these no-op until images/manifest.json lists some.
+  loadPhotos().then(() => {
+    if (!hasPhotos()) return;
+    mountBackdrop($('#ph-backdrop'));
+    mountCarousel($('#ph-carousel'));
+    document.documentElement.classList.add('has-photos');
+  });
   $('#stat-places').textContent = POIS.length;
   $('#stat-interests').textContent = Object.keys(INTERESTS).length;
   $('#stat-badges').textContent = ACHIEVEMENTS.length;
@@ -959,9 +981,11 @@ function renderLanding() {
 
 document.addEventListener('DOMContentLoaded', () => {
   document.documentElement.lang = getLang();
+  initTheme();
   applyStatic();
   renderLanding();
   wireLanguage();
+  wireTheme();
   wireAuth();
   wireNav();
   wirePhotos();
