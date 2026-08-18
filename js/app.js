@@ -2,12 +2,14 @@
 // BRAW — app shell: auth, navigation, views, event wiring.
 // ============================================================
 
-import { POIS, POI_BY_ID, INTERESTS, LEVELS, XP_EVENTS, ACHIEVEMENTS, RIVALS } from './data.js';
+import { POIS, POI_BY_ID, INTERESTS, LEVELS, XP_EVENTS, ACHIEVEMENTS, RIVALS, REGIONS } from './data.js';
 import { store } from './store.js';
-import { awardXP, evaluateAchievements, userStats, toastInfo, burstConfetti, setQuiet, activityText } from './gamification.js';
+import { awardXP, evaluateAchievements, evaluateStamps, regionProgress, userStats, toastInfo, burstConfetti, setQuiet, activityText } from './gamification.js';
 import { generateTrip, tripProgress, tripStopIds, tripTitle, paceLabel } from './planner.js';
 import { renderMap } from './scotland-map.js';
 import { renderHero } from './hero-scene.js';
+import { nextQuestion, gameXPFor, recordRun, answerName } from './minigame.js';
+import { compressImage, savePhoto, getPhoto, deletePhoto, listPhotoIds } from './photos.js';
 import {
   t, getLang, setLang, onLangChange, applyStatic, LANGS,
   poiName, poiBlurb, regionName, poiTime, cityName,
@@ -148,6 +150,7 @@ function seedDemoProgress() {
     awardXP(user, POI_BY_ID[id].xp, 'act.visited', { poiId: id }, POI_BY_ID[id].icon);
   }
   evaluateAchievements(user);
+  evaluateStamps(user);
   store.save();
 }
 
@@ -169,13 +172,13 @@ function renderHeader() {
 // Navigation
 // ============================================================
 
-const VIEWS = ['plan', 'trips', 'trip', 'badges', 'leaderboard', 'profile'];
+const VIEWS = ['plan', 'trips', 'trip', 'badges', 'play', 'leaderboard', 'profile'];
 
 function switchView(name) {
   currentView = name;
   for (const v of VIEWS) $(`#view-${v}`).hidden = v !== name;
   $$('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.view === name));
-  const renderers = { plan: renderPlan, trips: renderTrips, trip: renderTripDetail, badges: renderBadges, leaderboard: renderLeaderboard, profile: renderProfile };
+  const renderers = { plan: renderPlan, trips: renderTrips, trip: renderTripDetail, badges: renderBadges, play: renderGame, leaderboard: renderLeaderboard, profile: renderProfile };
   renderers[name]?.();
   renderHeader();
   window.scrollTo({ top: 0 });
@@ -393,9 +396,13 @@ function dayListHTML(trip, interactive) {
           <div class="stop-blurb">${esc(poiBlurb(poi))}</div>
         </div>
         ${interactive ? `
-        <button class="visit-btn ${visited ? 'undo' : ''}" data-visit="${id}">
-          ${visited ? t('trip.visited') : t('trip.markVisited')}
-        </button>` : ''}
+        <div class="stop-actions">
+          <button class="visit-btn ${visited ? 'undo' : ''}" data-visit="${id}">
+            ${visited ? t('trip.visited') : t('trip.markVisited')}
+          </button>
+          ${visited ? `<button class="photo-btn" data-photo="${id}" data-i18n-aria="photo.add"
+                               aria-label="${esc(t('photo.add'))}" title="${esc(t('photo.add'))}">📷</button>` : ''}
+        </div>` : ''}
       </div>`;
     }).join('');
     const regions = [...new Set(d.stops.map(id => regionName(POI_BY_ID[id].region)))];
@@ -462,6 +469,7 @@ function renderTripDetail() {
     btn.addEventListener('click', e => { e.stopPropagation(); toggleVisited(trip, btn.dataset.visit); })
   );
   wireMarkerHover(host);
+  hydratePhotos(host);
 }
 
 function toggleVisited(trip, poiId) {
@@ -481,6 +489,10 @@ function toggleVisited(trip, poiId) {
       burstConfetti(60);
     }
     evaluateAchievements(user);
+    for (const r of evaluateStamps(user)) {
+      toastInfo(t('passport.toast', { region: regionName(r.name) }), r.icon);
+      burstConfetti(40);
+    }
   }
   store.save();
   renderTripDetail();
@@ -500,11 +512,117 @@ function wireMarkerHover(scope) {
   });
 }
 
+
+// ============================================================
+// Check-in photos
+// ============================================================
+
+let photoTarget = null;   // poiId awaiting a file from the shared picker
+
+/** Paint any stored photos into the stops currently on screen. */
+async function hydratePhotos(scope) {
+  const ids = await listPhotoIds(user.name);
+  for (const id of ids) {
+    const stop = scope.querySelector(`.stop[data-poi="${id}"]`);
+    if (!stop || stop.querySelector('.stop-photo')) continue;
+    const dataUrl = await getPhoto(user.name, id);
+    if (!dataUrl) continue;
+    attachThumb(stop, id, dataUrl);
+  }
+}
+
+function attachThumb(stop, poiId, dataUrl) {
+  stop.querySelector('.stop-photo')?.remove();
+  const poi = POI_BY_ID[poiId];
+  const fig = document.createElement('button');
+  fig.type = 'button';
+  fig.className = 'stop-photo';
+  fig.title = t('photo.alt', { name: poiName(poi) });
+  fig.innerHTML = `<img src="${dataUrl}" alt="${esc(t('photo.alt', { name: poiName(poi) }))}">`;
+  fig.addEventListener('click', e => { e.stopPropagation(); openPhoto(poiId, dataUrl); });
+  stop.querySelector('.stop-body').appendChild(fig);
+  const btn = stop.querySelector(`[data-photo="${poiId}"]`);
+  if (btn) { btn.classList.add('has-photo'); btn.title = t('photo.replace'); }
+}
+
+function openPhoto(poiId, dataUrl) {
+  const poi = POI_BY_ID[poiId];
+  $('#photo-viewer-img').src = dataUrl;
+  $('#photo-viewer-img').alt = t('photo.alt', { name: poiName(poi) });
+  $('#photo-caption').innerHTML =
+    `<span>${poi.icon} ${esc(poiName(poi))}</span>` +
+    `<button type="button" class="btn btn-danger btn-sm" id="photo-del">${t('photo.remove')}</button>`;
+  $('#photo-viewer').hidden = false;
+  $('#photo-del').addEventListener('click', async () => {
+    await deletePhoto(user.name, poiId);
+    closePhoto();
+    renderTripDetail();
+  });
+}
+
+function closePhoto() {
+  $('#photo-viewer').hidden = true;
+  $('#photo-viewer-img').src = '';
+}
+
+function wirePhotos() {
+  const input = $('#photo-input');
+
+  document.addEventListener('click', e => {
+    const btn = e.target.closest('[data-photo]');
+    if (!btn) return;
+    e.stopPropagation();
+    photoTarget = btn.dataset.photo;
+    input.value = '';          // so re-picking the same file still fires change
+    input.click();
+  });
+
+  input.addEventListener('change', async () => {
+    const file = input.files && input.files[0];
+    if (!file || !photoTarget) return;
+    const poiId = photoTarget;
+    photoTarget = null;
+    try {
+      const dataUrl = await compressImage(file);
+      await savePhoto(user.name, poiId, dataUrl);
+      const stop = document.querySelector(`.stop[data-poi="${poiId}"]`);
+      if (stop) attachThumb(stop, poiId, dataUrl);
+      toastInfo(t('photo.saved', { name: poiName(POI_BY_ID[poiId]) }), '📸');
+    } catch {
+      toastInfo(t('photo.failed'), '⚠️');
+    }
+  });
+
+  $('#photo-close').addEventListener('click', closePhoto);
+  $('#photo-viewer').addEventListener('click', e => { if (e.target.id === 'photo-viewer') closePhoto(); });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && !$('#photo-viewer').hidden) closePhoto();
+  });
+}
+
 // ============================================================
 // View: Achievements
 // ============================================================
 
+function renderPassport() {
+  const regions = regionProgress(user);
+  const stamped = regions.filter(r => r.complete).length;
+  $('#passport-count-label').textContent = t('passport.count', { owned: stamped, total: regions.length });
+  $('#passport-progress-fill').style.width = `${Math.round((stamped / regions.length) * 100)}%`;
+
+  $('#passport-grid').innerHTML = regions.map(r => `
+    <div class="stamp ${r.complete ? 'is-stamped' : ''}">
+      <div class="stamp-mark">${r.icon}</div>
+      <div class="stamp-name">${esc(regionName(r.name))}</div>
+      <div class="progress"><div class="progress-fill" style="width:${r.pct}%"></div></div>
+      <div class="stamp-meta">${r.complete
+        ? t('passport.stamped', { date: new Date(r.stampedAt).toLocaleDateString(locale()) })
+        : t('passport.progress', { done: r.done, total: r.total })}</div>
+    </div>`).join('');
+}
+
 function renderBadges() {
+  renderPassport();
   const owned = new Map(user.achievements.map(a => [a.id, a.at]));
   $('#badges-count-label').textContent = t('badges.count', { owned: owned.size, total: ACHIEVEMENTS.length });
   $('#badges-progress-fill').style.width = `${Math.round((owned.size / ACHIEVEMENTS.length) * 100)}%`;
@@ -520,6 +638,118 @@ function renderBadges() {
         : t('badges.reward', { xp: def.xp })}</div>
     </div>`;
   }).join('');
+}
+
+
+// ============================================================
+// View: Guess the Glen
+// ============================================================
+
+let game = null;      // in-progress run: { score, asked, q, answered }
+let lastRun = null;   // result of the run just finished, for the results card
+
+function renderGame() {
+  const host = $('#game-panel');
+  const best = user.game?.best || 0;
+
+  if (!game) {                                   // idle / results screen
+    const last = lastRun;
+    host.innerHTML = `
+      <div class="game-card card">
+        ${last ? `
+          <div class="game-over">
+            <div class="go-kicker">${t('game.runOver')}</div>
+            <div class="go-score">${last.score}</div>
+            <div class="go-sub">${esc(t('game.runScore', { score: last.score }))}</div>
+            ${last.isBest ? `<div class="go-best">🏆 ${t('game.newBest')}</div>` : ''}
+          </div>` : ''}
+        <div class="game-stats">
+          <span><b>${best}</b> ${t('game.best')}</span>
+        </div>
+        <button class="btn btn-primary btn-block" id="game-start">${last ? t('game.again') : t('game.start')}</button>
+      </div>`;
+    $('#game-start').addEventListener('click', startRun);
+    return;
+  }
+
+  const q = game.q;
+  host.innerHTML = `
+    <div class="game-card card">
+      <div class="game-top">
+        <span class="game-q">${t('game.question', { n: game.score + 1 })}</span>
+        <span class="game-sc"><b>${game.score}</b> ${t('game.score')} · <b>${best}</b> ${t('game.best')}</span>
+      </div>
+      <p class="game-clue">${esc(q.clue)}</p>
+      <div class="game-hint" id="game-hint-wrap">
+        <button type="button" class="link-btn" id="game-hint">${t('game.hint')}</button>
+      </div>
+      <div class="game-options" id="game-options">
+        ${q.options.map(o => `<button class="game-opt" data-id="${o.id}">${esc(o.name)}</button>`).join('')}
+      </div>
+      <div class="game-feedback" id="game-feedback"></div>
+      <button class="btn btn-ghost btn-block btn-sm" id="game-quit">${t('game.quit')}</button>
+    </div>`;
+
+  $('#game-hint').addEventListener('click', e => {
+    e.target.replaceWith(Object.assign(document.createElement('span'), {
+      className: 'game-hint-text', textContent: t('game.hintShown', { region: q.region }),
+    }));
+  });
+  host.querySelectorAll('.game-opt').forEach(b =>
+    b.addEventListener('click', () => answer(b.dataset.id)));
+  $('#game-quit').addEventListener('click', endRun);
+}
+
+function startRun() {
+  lastRun = null;
+  game = { score: 0, asked: [], answered: false, q: nextQuestion([]) };
+  renderGame();
+}
+
+function answer(id) {
+  if (!game || game.answered) return;
+  game.answered = true;
+  const correct = id === game.q.answerId;
+
+  $$('.game-opt').forEach(b => {
+    b.disabled = true;
+    if (b.dataset.id === game.q.answerId) b.classList.add('is-right');
+    else if (b.dataset.id === id) b.classList.add('is-wrong');
+  });
+
+  const fb = $('#game-feedback');
+  if (correct) {
+    game.score++;
+    game.asked.push(game.q.answerId);
+    const xp = gameXPFor(user);
+    if (xp) awardXP(user, xp, 'game.correct', null, '🎯');
+    store.save();
+    fb.className = 'game-feedback is-good';
+    fb.textContent = xp ? `${t('game.correct')}  +${xp} ${t('unit.xp')}` : `${t('game.correct')}  ${t('game.capped')}`;
+    renderHeader();
+    setTimeout(() => {
+      if (!game) return;
+      game.q = nextQuestion(game.asked);
+      game.answered = false;
+      renderGame();
+    }, 900);
+  } else {
+    fb.className = 'game-feedback is-bad';
+    fb.textContent = t('game.wrong', { name: answerName(game.q.answerId) });
+    setTimeout(endRun, 1500);
+  }
+}
+
+function endRun() {
+  if (!game) return;
+  const score = game.score;
+  const isBest = recordRun(user, score);
+  store.save();
+  if (isBest && score > 0) burstConfetti(50);
+  game = null;
+  lastRun = { score, isBest: isBest && score > 0 };
+  renderGame();
+  renderHeader();
 }
 
 // ============================================================
@@ -563,8 +793,13 @@ function renderLeaderboard() {
 // View: Profile
 // ============================================================
 
+let photoCount = 0;
+
 function renderProfile() {
   const s = userStats(user);
+  listPhotoIds(user.name).then(ids => {
+    if (ids.length !== photoCount) { photoCount = ids.length; if (currentView === 'profile') renderProfile(); }
+  });
   const { level, into, need } = LEVELS.fromXP(user.xp);
 
   $('#profile-card').innerHTML = `
@@ -589,6 +824,8 @@ function renderProfile() {
         ['🌍', s.regions, 'profile.stat.regions'],
         ['🏔️', s.peaks, 'profile.stat.peaks'],
         ['🏅', user.achievements.length, 'profile.stat.badges'],
+        ['🛂', Object.keys(user.stamps || {}).length, 'profile.stat.stamps'],
+        ['📸', photoCount, 'profile.stat.photos'],
       ].map(([icon, n, key]) => `
         <div class="stat card"><span class="stat-icon">${icon}</span><span class="stat-n">${n}</span><span class="stat-label">${esc(t(key))}</span></div>`).join('')}
     </div>
@@ -634,6 +871,7 @@ document.addEventListener('DOMContentLoaded', () => {
   wireLanguage();
   wireAuth();
   wireNav();
+  wirePhotos();
   $('#plan-go').addEventListener('click', runPlanner);
   $('#plan-input').addEventListener('keydown', e => {
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) runPlanner();

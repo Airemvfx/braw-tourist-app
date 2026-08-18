@@ -43,8 +43,25 @@ function freshProfile(name) {
     xp: 0,
     achievements: [],   // [{ id, at }]
     trips: [],          // trip objects, see planner.js
-    activity: [],       // [{ at, icon, text, xp }]
+    activity: [],       // [{ at, icon, key, params, xp }]
+    stamps: {},         // { regionName: timestamp } — passport
+    game: { best: 0, plays: 0, xpDate: null, xpToday: 0 },
   };
+}
+
+/**
+ * Fill in fields added after a profile was first written. Profiles live in
+ * the user's browser indefinitely, so every read has to tolerate a shape
+ * from an older build rather than assuming the current one.
+ */
+function normalise(user) {
+  if (!user) return user;
+  user.stamps ||= {};
+  user.game ||= { best: 0, plays: 0, xpDate: null, xpToday: 0 };
+  user.achievements ||= [];
+  user.trips ||= [];
+  user.activity ||= [];
+  return user;
 }
 
 export const store = {
@@ -54,7 +71,7 @@ export const store = {
 
   currentUser() {
     const key = this.sessionName;
-    return key ? this.users[key] || null : null;
+    return key ? normalise(this.users[key]) || null : null;
   },
 
   async register(name, password) {
@@ -67,7 +84,7 @@ export const store = {
     this.users[key] = user;
     persistUsers(this.users);
     localStorage.setItem(SESSION_KEY, key);
-    return user;
+    return normalise(user);
   },
 
   async login(name, password) {
@@ -76,7 +93,7 @@ export const store = {
     if (!user) throw authError('auth.err.noUser');
     if (user.passHash !== await hashPassword(password)) throw authError('auth.err.wrongPass');
     localStorage.setItem(SESSION_KEY, key);
-    return user;
+    return normalise(user);
   },
 
   logout() { localStorage.removeItem(SESSION_KEY); },

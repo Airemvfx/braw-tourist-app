@@ -214,7 +214,39 @@ export const XP_EVENTS = {
   CREATE_TRIP: 100,
   COMPLETE_TRIP: 250,
   JOIN: 50,
+  REGION_STAMP: 120,   // every location in one region visited
+  GAME_CORRECT: 2,     // per correct answer in Guess the Glen
+  GAME_DAILY_CAP: 30,  // ceiling on game XP per day, so it cannot be farmed
 };
+
+// A stamp per region for the passport. Names are the display strings;
+// the icon is the only thing stored here, labels come from i18n.
+export const REGION_ICONS = {
+  'Edinburgh & Lothians':    '🏛️',
+  'Glasgow & Clyde':         '🎨',
+  'Stirling & Forth Valley': '🛡️',
+  'Loch Lomond & Trossachs': '🛶',
+  'Argyll & the Isles':      '⛴️',
+  'Ayrshire & Arran':        '🏖️',
+  'Highlands':               '⛰️',
+  'Isle of Skye':            '🗿',
+  'Loch Ness & Inverness':   '🦕',
+  'Cairngorms':              '🌲',
+  'Speyside & Moray':        '🥃',
+  'Aberdeenshire & Angus':   '🌅',
+  'Perthshire':              '🍂',
+  'Fife & Dundee':           '⛳',
+  'North Coast 500':         '🛞',
+  'Scottish Borders':        '🕍',
+  'Dumfries & Galloway':     '🌌',
+};
+
+/** Every region in POI order, with its POI ids. */
+export const REGIONS = [...new Set(POIS.map(p => p.region))].map(name => ({
+  name,
+  icon: REGION_ICONS[name] || '📍',
+  poiIds: POIS.filter(p => p.region === name).map(p => p.id),
+}));
 
 export const ACHIEVEMENTS = [
   { id: 'first-quest',      icon: '🗺️', xp: 50,  check: s => s.tripsCreated >= 1 },

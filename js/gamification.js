@@ -2,9 +2,9 @@
 // Gamification engine: XP, levels, achievements, toasts, confetti.
 // ============================================================
 
-import { ACHIEVEMENTS, LEVELS, POI_BY_ID } from './data.js';
+import { ACHIEVEMENTS, LEVELS, POI_BY_ID, REGIONS, XP_EVENTS } from './data.js';
 import { store } from './store.js';
-import { t, levelTitle, achievementName, achievementDesc, poiName } from './i18n.js';
+import { t, levelTitle, achievementName, achievementDesc, poiName, regionName } from './i18n.js';
 
 // Quiet mode suppresses toasts/overlays (used when seeding demo data).
 let quiet = false;
@@ -37,6 +37,42 @@ export function userStats(user) {
   };
 }
 
+// ---- passport ----
+
+/**
+ * Per-region completion. Turns 87 loose checkboxes into 17 finishable
+ * goals, which is the point: a region you are 4/6 through is a reason to
+ * go back, where a flat list of 87 never feels close to anything.
+ */
+export function regionProgress(user) {
+  const visited = new Set(userStats(user).visitedIds);
+  return REGIONS.map(r => {
+    const done = r.poiIds.filter(id => visited.has(id)).length;
+    return {
+      name: r.name, icon: r.icon, poiIds: r.poiIds,
+      done, total: r.poiIds.length,
+      pct: Math.round((done / r.poiIds.length) * 100),
+      complete: done === r.poiIds.length,
+      stampedAt: user.stamps?.[r.name] || null,
+    };
+  });
+}
+
+/** Stamp any region finished since the last check, once each. */
+export function evaluateStamps(user) {
+  user.stamps ||= {};
+  const earned = [];
+  for (const r of regionProgress(user)) {
+    if (r.complete && !user.stamps[r.name]) {
+      user.stamps[r.name] = Date.now();
+      earned.push(r);
+      awardXP(user, XP_EVENTS.REGION_STAMP, 'passport.earned', { region: r.name }, r.icon);
+    }
+  }
+  if (earned.length) store.save();
+  return earned;
+}
+
 // ---- XP / levels ----
 
 function logActivity(user, icon, key, params, xp) {
@@ -55,6 +91,7 @@ export function activityText(entry) {
   const params = { ...entry.params };
   if (params.achId) params.name = achievementName(params.achId);
   if (params.poiId && POI_BY_ID[params.poiId]) params.name = poiName(POI_BY_ID[params.poiId]);
+  if (params.region) params.region = regionName(params.region);
   return t(entry.key, params);
 }
 

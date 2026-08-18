@@ -1078,6 +1078,155 @@ small { font-size: 0.78em; }
 #view-plan > *:not(.plan-art):not(.plan-art-scrim) { position: relative; z-index: 1; }
 
 /* ============================================================
+   Regional passport
+   ============================================================ */
+.view-head-sub { margin-top: 2.6rem; }
+.view-head-sub .view-title { font-size: 1.7rem; }
+
+.passport-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(min(190px, 100%), 1fr));
+  gap: 0.8rem; margin-bottom: 0.6rem;
+}
+.stamp {
+  padding: 1rem 0.9rem; border-radius: 12px; text-align: center;
+  background: rgba(0,0,0,0.2);
+  border: 1px dashed var(--border-strong);
+  transition: border-color 0.2s, background 0.2s, transform 0.18s var(--ease-out);
+}
+.stamp-mark {
+  width: 52px; height: 52px; margin: 0 auto 0.55rem;
+  display: grid; place-items: center; font-size: 1.5rem;
+  border-radius: 50%;
+  border: 2px dashed var(--border-strong);
+  filter: grayscale(1); opacity: 0.5;
+  transition: filter 0.25s, opacity 0.25s, transform 0.3s var(--ease-pop), border-color 0.25s;
+}
+.stamp-name { font-weight: 600; font-size: 0.87rem; margin-bottom: 0.5rem; line-height: 1.25; }
+.stamp-meta {
+  font-family: var(--font-mono); font-size: 0.63rem; letter-spacing: 0.06em;
+  color: var(--text-faint); margin-top: 0.45rem;
+}
+.stamp.is-stamped {
+  border-style: solid; border-color: rgba(201,138,64,0.45);
+  background: rgba(201,138,64,0.07);
+}
+.stamp.is-stamped .stamp-mark {
+  filter: none; opacity: 1;
+  border-style: solid; border-color: var(--amber);
+  background: rgba(201,138,64,0.14);
+  transform: rotate(-7deg);
+}
+.stamp.is-stamped .stamp-meta { color: var(--amber-light); }
+
+/* ============================================================
+   Guess the Glen
+   ============================================================ */
+.game-card { padding: 1.5rem; max-width: 620px; }
+.game-top {
+  display: flex; justify-content: space-between; align-items: baseline;
+  gap: 1rem; margin-bottom: 1rem;
+  font-family: var(--font-mono); font-size: 0.68rem;
+  letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-faint);
+}
+.game-top b { color: var(--amber-light); font-size: 0.95rem; }
+.game-clue {
+  font-family: var(--font-display); font-size: 1.32rem; font-style: italic;
+  line-height: 1.45; color: var(--text); margin-bottom: 0.9rem;
+}
+.game-hint { min-height: 1.6rem; margin-bottom: 1rem; }
+.link-btn {
+  background: none; border: 0; padding: 0; cursor: pointer;
+  font-family: var(--font-ui); font-size: 0.82rem;
+  color: var(--text-dim); text-decoration: underline dotted;
+}
+.link-btn:hover { color: var(--amber-light); }
+.game-hint-text { font-size: 0.82rem; color: var(--sage); font-weight: 500; }
+
+.game-options { display: grid; gap: 0.5rem; margin-bottom: 0.9rem; }
+.game-opt {
+  width: 100%; text-align: left; cursor: pointer;
+  padding: 0.85rem 1rem; border-radius: 11px;
+  font-family: var(--font-ui); font-size: 0.95rem; color: var(--text);
+  background: rgba(0,0,0,0.22); border: 1px solid var(--border);
+  transition: border-color 0.18s, background 0.18s, transform 0.14s var(--ease-out);
+}
+.game-opt:active { transform: scale(0.985); }
+.game-opt:disabled { cursor: default; }
+.game-opt.is-right {
+  border-color: var(--sage); background: var(--sage-pale); color: #9fe3c4; font-weight: 600;
+}
+.game-opt.is-wrong {
+  border-color: var(--rose); background: rgba(201,98,84,0.14); color: #eaa89e;
+}
+.game-feedback { min-height: 1.5rem; font-size: 0.88rem; font-weight: 600; margin-bottom: 0.9rem; }
+.game-feedback.is-good { color: var(--sage); }
+.game-feedback.is-bad { color: var(--rose); }
+
+.game-stats {
+  display: flex; gap: 1.4rem; justify-content: center; margin-bottom: 1.1rem;
+  font-family: var(--font-mono); font-size: 0.7rem;
+  letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-faint);
+}
+.game-stats b { color: var(--amber-light); font-size: 1.5rem; display: block; text-align: center; }
+.game-over { text-align: center; margin-bottom: 1.3rem; }
+.go-kicker {
+  font-family: var(--font-mono); font-size: 0.65rem; letter-spacing: 0.22em;
+  text-transform: uppercase; color: var(--text-faint);
+}
+.go-score {
+  font-family: var(--font-display); font-size: 4rem; font-weight: 700;
+  line-height: 1; color: var(--amber-light); margin: 0.2rem 0;
+}
+.go-sub { font-size: 0.9rem; color: var(--text-dim); }
+.go-best { margin-top: 0.6rem; font-weight: 600; color: var(--gold); }
+
+/* ============================================================
+   Check-in photos
+   ============================================================ */
+.stop-actions { display: grid; gap: 0.4rem; justify-items: stretch; }
+.photo-btn {
+  cursor: pointer; padding: 0.4rem 0.5rem; border-radius: 8px;
+  font-size: 0.9rem; line-height: 1;
+  background: rgba(0,0,0,0.25); border: 1px solid var(--border);
+  transition: border-color 0.18s, background 0.18s, transform 0.14s var(--ease-out);
+}
+.photo-btn:active { transform: scale(0.92); }
+.photo-btn.has-photo { border-color: rgba(201,138,64,0.45); background: var(--amber-pale); }
+
+.stop-photo {
+  display: block; margin-top: 0.6rem; padding: 0; cursor: pointer;
+  border: 1px solid var(--border-strong); border-radius: 10px;
+  overflow: hidden; background: none; line-height: 0;
+  transition: border-color 0.18s, transform 0.16s var(--ease-out);
+}
+.stop-photo img { width: 100%; max-width: 220px; height: auto; display: block; }
+.stop-photo:active { transform: scale(0.99); }
+
+.photo-viewer {
+  position: fixed; inset: 0; z-index: 300;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 1rem; padding: 1.5rem;
+  background: rgba(6,10,16,0.94);
+  backdrop-filter: blur(6px);
+}
+.photo-viewer img {
+  max-width: min(900px, 100%); max-height: 72vh;
+  border-radius: 12px; border: 1px solid var(--border-strong);
+}
+.photo-caption {
+  display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; justify-content: center;
+  font-weight: 600; color: var(--text);
+}
+.photo-close {
+  position: absolute; top: 1rem; right: 1rem;
+  width: 40px; height: 40px; border-radius: 50%; cursor: pointer;
+  background: rgba(255,255,255,0.07); border: 1px solid var(--border-strong);
+  color: var(--text); font-size: 1rem;
+  transition: background 0.18s, transform 0.16s var(--ease-out);
+}
+.photo-close:active { transform: scale(0.9); }
+
+/* ============================================================
    Interaction & motion
    Press feedback applies everywhere; lift-on-hover is gated behind
    `hover: hover` because on touch screens :hover latches after a tap
@@ -1151,6 +1300,13 @@ small { font-size: 0.78em; }
     transform: translateY(-2px);
   }
   .trips-cta:hover .tcta-icon { transform: scale(1.08) rotate(-8deg); }
+
+  .stamp:hover { transform: translateY(-2px); border-color: var(--border-active); }
+  .stamp.is-stamped:hover .stamp-mark { transform: rotate(-7deg) scale(1.08); }
+  .game-opt:not(:disabled):hover { border-color: var(--border-active); background: rgba(25,40,64,0.6); }
+  .photo-btn:hover { border-color: var(--border-active); background: rgba(25,40,64,0.6); }
+  .stop-photo:hover { border-color: var(--amber); }
+  .photo-close:hover { background: rgba(255,255,255,0.14); }
 
   .brand-feats li:hover {
     border-color: var(--border-strong);

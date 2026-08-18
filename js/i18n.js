@@ -145,6 +145,34 @@ const EN = {
   'badges.toastKicker': 'Achievement unlocked',
   'badges.logged': 'Achievement unlocked: {name}',
 
+  // ---- passport ----
+  'passport.title': 'Regional Passport',
+  'passport.sub': 'Visit every location in a region to earn its stamp.',
+  'passport.count': '{owned} of {total} regions stamped',
+  'passport.stamped': 'Stamped {date}',
+  'passport.progress': '{done}/{total} visited',
+  'passport.earned': 'Region stamped: {region}',
+  'passport.toast': 'Passport stamped — {region}!',
+
+  // ---- mini-game ----
+  'nav.play': 'Play',
+  'game.title': 'Guess the <em>Glen</em>',
+  'game.sub': 'We describe a place in Scotland. Name it. One wrong answer ends the run.',
+  'game.start': 'Start a run →',
+  'game.again': 'Play again →',
+  'game.question': 'Question {n}',
+  'game.score': 'Score',
+  'game.best': 'Best',
+  'game.hint': 'Need a hint?',
+  'game.hintShown': 'Somewhere in {region}',
+  'game.correct': 'Correct!',
+  'game.wrong': 'Not quite — it was {name}',
+  'game.runOver': 'Run over',
+  'game.runScore': 'You named {score} correctly',
+  'game.newBest': 'New personal best!',
+  'game.capped': 'Daily XP for the quiz is maxed — play on for the score',
+  'game.quit': 'Finish run',
+
   // ---- leaderboard ----
   'lb.title': 'Leaderboard',
   'lb.col.rank': '#',
@@ -168,6 +196,17 @@ const EN = {
   'profile.stat.regions': 'regions explored',
   'profile.stat.peaks': 'peaks bagged',
   'profile.stat.badges': 'achievements',
+  'profile.stat.stamps': 'region stamps',
+  'profile.stat.photos': 'photos taken',
+
+  // ---- check-in photos ----
+  'photo.add': 'Add photo',
+  'photo.replace': 'Replace photo',
+  'photo.remove': 'Remove photo',
+  'photo.alt': 'Your photo of {name}',
+  'photo.saved': 'Photo saved for {name}',
+  'photo.failed': 'That image could not be read',
+  'photo.close': 'Close',
   'profile.activity': 'Recent activity',
   'profile.activityEmpty': 'Nothing yet — go make some memories!',
 
@@ -418,6 +457,34 @@ const PL = {
   'badges.toastKicker': 'Osiągnięcie odblokowane',
   'badges.logged': 'Osiągnięcie odblokowane: {name}',
 
+  // ---- passport ----
+  'passport.title': 'Paszport regionów',
+  'passport.sub': 'Odwiedź wszystkie miejsca w regionie, aby zdobyć jego pieczątkę.',
+  'passport.count': 'Zdobyte pieczątki: {owned} z {total}',
+  'passport.stamped': 'Podbito {date}',
+  'passport.progress': 'odwiedzono {done}/{total}',
+  'passport.earned': 'Pieczątka regionu: {region}',
+  'passport.toast': 'Pieczątka w paszporcie — {region}!',
+
+  // ---- mini-game ----
+  'nav.play': 'Gra',
+  'game.title': 'Zgadnij <em>miejsce</em>',
+  'game.sub': 'Opisujemy miejsce w Szkocji. Nazwij je. Jedna pomyłka kończy rundę.',
+  'game.start': 'Rozpocznij rundę →',
+  'game.again': 'Zagraj ponownie →',
+  'game.question': 'Pytanie {n}',
+  'game.score': 'Wynik',
+  'game.best': 'Rekord',
+  'game.hint': 'Potrzebujesz podpowiedzi?',
+  'game.hintShown': 'Gdzieś w regionie {region}',
+  'game.correct': 'Dobrze!',
+  'game.wrong': 'Niestety — to było {name}',
+  'game.runOver': 'Koniec rundy',
+  'game.runScore': 'Poprawnie nazwanych miejsc: {score}',
+  'game.newBest': 'Nowy rekord!',
+  'game.capped': 'Dzienny limit PD za grę wyczerpany — graj dalej dla wyniku',
+  'game.quit': 'Zakończ rundę',
+
   // ---- leaderboard ----
   'lb.title': 'Ranking',
   'lb.col.rank': '#',
@@ -441,6 +508,17 @@ const PL = {
   'profile.stat.regions': 'poznanych regionów',
   'profile.stat.peaks': 'zdobytych szczytów',
   'profile.stat.badges': 'osiągnięć',
+  'profile.stat.stamps': 'pieczątek regionów',
+  'profile.stat.photos': 'zrobionych zdjęć',
+
+  // ---- check-in photos ----
+  'photo.add': 'Dodaj zdjęcie',
+  'photo.replace': 'Zmień zdjęcie',
+  'photo.remove': 'Usuń zdjęcie',
+  'photo.alt': 'Twoje zdjęcie: {name}',
+  'photo.saved': 'Zapisano zdjęcie: {name}',
+  'photo.failed': 'Nie udało się odczytać tego obrazu',
+  'photo.close': 'Zamknij',
   'profile.activity': 'Ostatnia aktywność',
   'profile.activityEmpty': 'Jeszcze nic tu nie ma — czas na wspomnienia!',
 
