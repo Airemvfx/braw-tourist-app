@@ -1,0 +1,27 @@
+{
+  "name": "BRAW — Scottish Roadtrip Quests",
+  "short_name": "BRAW",
+  "description": "Plan gamified roadtrips across Scotland: describe what you like, get a route, and collect regions as you travel.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0e1520",
+  "theme_color": "#0e1520",
+  "categories": ["travel", "navigation", "games"],
+  "lang": "en",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-maskable.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

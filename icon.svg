@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="BRAW">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0e1520"/><stop offset="100%" stop-color="#192840"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#sky)"/>
+  <circle cx="256" cy="196" r="46" fill="#d9b84a" opacity="0.22"/>
+  <circle cx="256" cy="196" r="30" fill="#e8e2d8" opacity="0.85"/>
+  <path d="M0,330 L96,268 L168,312 L248,252 L330,306 L410,256 L512,318 L512,512 L0,512 Z" fill="#1e2f4a"/>
+  <path d="M0,382 L110,322 L206,368 L300,318 L392,364 L512,312 L512,512 L0,512 Z" fill="#14202e"/>
+  <path d="M0,430 L128,386 L246,424 L366,382 L512,428 L512,512 L0,512 Z" fill="#0e1520"/>
+  <text x="256" y="472" text-anchor="middle" font-family="Georgia, serif" font-weight="700"
+        font-size="86" letter-spacing="-3" fill="#e8e2d8">BRAW<tspan fill="#c98a40">.</tspan></text>
+</svg>

@@ -166,7 +166,9 @@ export function renderMap(stops = [], start = null, userPos = null, opts = {}) {
       <text y="-32" text-anchor="middle" class="compass-n">N</text>
     </g>
 
-    ${routePts.length > 1 ? `<path class="map-route" d="${routeD}" fill="none"/>` : ''}
+    ${routePts.length > 1 ? `
+      <path class="map-route" d="${routeD}" fill="none"/>
+      <path class="map-route-trim" d="${routeD}" fill="none" pathLength="100"/>` : ''}
     ${startMarker}
     <g filter="url(#markerGlow)">${markers}</g>
   </svg>`;

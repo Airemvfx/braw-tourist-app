@@ -186,7 +186,6 @@ function switchView(name) {
 
 function wireNav() {
   $$('.nav-btn').forEach(b => b.addEventListener('click', () => switchView(b.dataset.view)));
-  $('#home-btn').addEventListener('click', () => { openTripId = null; switchView(homeView()); });
   $('#trips-cta').addEventListener('click', () => switchView('plan'));
   $('#logout-btn').addEventListener('click', () => {
     store.logout();
@@ -309,15 +308,15 @@ function renderDraft() {
           <button class="btn btn-primary" id="save-trip-btn">${t('trip.begin')}</button>
         </div>
       </div>
-      <div class="trip-layout">
-        <div class="map-panel">${renderMap(stops, trip.start)}</div>
-        <div class="days-panel">${dayListHTML(trip, false)}</div>
-      </div>
+      <div class="poi-panel" hidden></div>
+      <div class="map-stage">${renderMap(stops, trip.start)}</div>
+      <div class="stop-list">${stopListHTML(trip, false)}</div>
     </div>`;
 
   $('#reshuffle-btn').addEventListener('click', () => { draftTrip = generateTrip(trip.prompt); renderDraft(); });
   $('#save-trip-btn').addEventListener('click', saveDraft);
-  wireMarkerHover(box);
+  wireMapMarkers(box, trip, false);
+  wireStopList(box, trip);
 }
 
 function saveDraft() {
@@ -380,38 +379,86 @@ function renderTrips() {
 // View: Trip detail
 // ============================================================
 
-function dayListHTML(trip, interactive) {
+/**
+ * The shared body of a location: the same markup backs both the panel
+ * above the map and an expanded row in the list below it, so a stop
+ * reads identically however you reached it.
+ */
+function poiBodyHTML(poi, trip, interactive) {
+  const visited = !!trip.visited[poi.id];
+  return `
+    <div class="pd-meta">${esc(regionName(poi.region))} · ${esc(poiTime(poi.time))} · <span class="stop-xp">✦ ${poi.xp} ${t('unit.xp')}</span></div>
+    <p class="pd-blurb">${esc(poiBlurb(poi))}</p>
+    <div class="pd-photo" data-photo-slot="${poi.id}"></div>
+    ${interactive ? `
+    <div class="pd-actions">
+      <button class="visit-btn ${visited ? 'undo' : ''}" data-visit="${poi.id}">
+        ${visited ? t('trip.visited') : t('trip.markVisited')}
+      </button>
+      <button class="photo-btn" data-photo="${poi.id}"
+              aria-label="${esc(t('photo.add'))}" title="${esc(t('photo.add'))}">📷</button>
+    </div>` : ''}`;
+}
+
+/** Compact, tappable list of every stop, grouped by day. */
+function stopListHTML(trip, interactive) {
   let order = 0;
   return trip.days.map(d => {
-    const stopsHTML = d.stops.map(id => {
+    const rows = d.stops.map(id => {
       order++;
       const poi = POI_BY_ID[id];
       const visited = !!trip.visited[id];
       return `
-      <div class="stop ${visited ? 'is-visited' : ''}" data-poi="${id}">
-        <div class="stop-order">${visited ? '✓' : order}</div>
-        <div class="stop-body">
-          <div class="stop-name">${poi.icon} ${esc(poiName(poi))}</div>
-          <div class="stop-meta">${esc(regionName(poi.region))} · ${esc(poiTime(poi.time))} · <span class="stop-xp">✦ ${poi.xp} ${t('unit.xp')}</span></div>
-          <div class="stop-blurb">${esc(poiBlurb(poi))}</div>
-        </div>
-        ${interactive ? `
-        <div class="stop-actions">
-          <button class="visit-btn ${visited ? 'undo' : ''}" data-visit="${id}">
-            ${visited ? t('trip.visited') : t('trip.markVisited')}
-          </button>
-          ${visited ? `<button class="photo-btn" data-photo="${id}" data-i18n-aria="photo.add"
-                               aria-label="${esc(t('photo.add'))}" title="${esc(t('photo.add'))}">📷</button>` : ''}
-        </div>` : ''}
+      <div class="sl-item ${visited ? 'is-visited' : ''}" data-poi="${id}">
+        <button type="button" class="sl-row" data-toggle="${id}" aria-expanded="false">
+          <span class="sl-order">${visited ? '✓' : order}</span>
+          <span class="sl-icon">${poi.icon}</span>
+          <span class="sl-name">${esc(poiName(poi))}</span>
+          <span class="sl-caret" aria-hidden="true">⌄</span>
+        </button>
+        <div class="sl-body" hidden>${poiBodyHTML(poi, trip, interactive)}</div>
       </div>`;
     }).join('');
     const regions = [...new Set(d.stops.map(id => regionName(POI_BY_ID[id].region)))];
     return `
     <section class="day-block">
       <header class="day-head"><span class="day-num">${t('trip.day', { n: d.day })}</span><span class="day-regions">${esc(regions.join(' → '))}</span></header>
-      ${stopsHTML}
+      ${rows}
     </section>`;
   }).join('');
+}
+
+/**
+ * Show a location above the map instead of scrolling the page to it.
+ * Tapping pin after pin used to walk the user down the page and leave
+ * them scrolling back up each time; the map now stays put.
+ */
+function openPoiPanel(poiId, scope = document, trip = null, interactive = true) {
+  trip = trip || user.trips.find(t2 => t2.id === openTripId);
+  const poi = POI_BY_ID[poiId];
+  const panel = scope.querySelector('.poi-panel');
+  if (!trip || !poi || !panel) return;
+  panel.innerHTML = `
+    <button type="button" class="poi-close" id="poi-close"
+            aria-label="${esc(t('photo.close'))}" title="${esc(t('photo.close'))}">✕</button>
+    <div class="poi-head">
+      <span class="poi-icon">${poi.icon}</span>
+      <span class="poi-name">${esc(poiName(poi))}</span>
+    </div>
+    ${poiBodyHTML(poi, trip, interactive)}`;
+  panel.hidden = false;
+  panel.querySelector('.poi-close').addEventListener('click', () => closePoiPanel(scope));
+  scope.querySelectorAll('.map-marker').forEach(m => m.classList.toggle('is-active', m.dataset.poi === poiId));
+  panel.scrollIntoView({ block: 'nearest' });
+  hydratePhotos(panel);
+}
+
+function closePoiPanel(scope = document) {
+  const panel = scope.querySelector('.poi-panel');
+  if (!panel) return;
+  panel.hidden = true;
+  panel.innerHTML = '';
+  scope.querySelectorAll('.map-marker').forEach(m => m.classList.remove('is-active'));
 }
 
 function renderTripDetail() {
@@ -427,49 +474,58 @@ function renderTripDetail() {
 
   host.innerHTML = `
     <button class="back-link" id="back-to-trips">${t('trip.back')}</button>
-    <div class="trip-sheet card ${trip.completedAt ? 'is-complete' : ''}">
-      <div class="sheet-head">
-        <div>
-          <div class="kicker">${trip.completedAt ? t('trip.kicker.complete') : t('trip.kicker.active')}</div>
-          <h2 class="trip-title">${esc(tripTitle(trip))}</h2>
-          <div class="pill-row">${interestPills(trip.interests)}
-            <span class="pill pill-dim">${t('trip.distance', { dist: formatDistance(trip) })}</span>
-            <span class="pill pill-dim">${esc(t('trip.from', { start: cityName(trip.start.name) }))}</span>
-          </div>
-          <p class="trip-prompt">“${esc(trip.prompt)}”</p>
-        </div>
-        <div class="ring-wrap" title="${esc(t('trip.visitedRatio', { done: pr.done, total: pr.total }))}">
-          <svg viewBox="0 0 90 90" class="ring">
-            <circle cx="45" cy="45" r="38" class="ring-bg"/>
-            <circle cx="45" cy="45" r="38" class="ring-fg" stroke-dasharray="${(pr.pct / 100) * 238.8} 238.8"/>
-          </svg>
-          <div class="ring-label"><b>${pr.pct}%</b><span>${pr.done}/${pr.total}</span></div>
+
+    <header class="trip-head ${trip.completedAt ? 'is-complete' : ''}">
+      <div class="th-text">
+        <div class="kicker">${trip.completedAt ? t('trip.kicker.complete') : t('trip.kicker.active')}</div>
+        <h2 class="trip-title">${esc(tripTitle(trip))}</h2>
+        <div class="pill-row">${interestPills(trip.interests)}
+          <span class="pill pill-dim">${t('trip.distance', { dist: formatDistance(trip) })}</span>
+          <span class="pill pill-dim">${esc(t('trip.from', { start: cityName(trip.start.name) }))}</span>
         </div>
       </div>
-
-      ${trip.completedAt ? `
-        <div class="complete-banner">${t('trip.completeBanner', { xp: XP_EVENTS.COMPLETE_TRIP })}</div>
-      ` : next ? `
-        <div class="next-up">
-          <span class="nu-kicker">${t('trip.nextUp')}</span>
-          <span class="nu-name">${next.poi.icon} ${esc(poiName(next.poi))}</span>
-          <span class="nu-meta">${esc(t('trip.stopOf', {
-            region: regionName(next.poi.region), n: next.order, total: pr.total, xp: next.poi.xp,
-          }))}</span>
-        </div>` : ''}
-
-      <div class="trip-layout">
-        <div class="map-panel">${renderMap(stops, trip.start)}</div>
-        <div class="days-panel">${dayListHTML(trip, true)}</div>
+      <div class="ring-wrap" title="${esc(t('trip.visitedRatio', { done: pr.done, total: pr.total }))}">
+        <svg viewBox="0 0 90 90" class="ring">
+          <circle cx="45" cy="45" r="38" class="ring-bg"/>
+          <circle cx="45" cy="45" r="38" class="ring-fg" stroke-dasharray="${(pr.pct / 100) * 238.8} 238.8"/>
+        </svg>
+        <div class="ring-label"><b>${pr.pct}%</b><span>${pr.done}/${pr.total}</span></div>
       </div>
-    </div>`;
+    </header>
+
+    ${trip.completedAt ? `
+      <div class="complete-banner">${t('trip.completeBanner', { xp: XP_EVENTS.COMPLETE_TRIP })}</div>
+    ` : next ? `
+      <div class="next-up">
+        <span class="nu-kicker">${t('trip.nextUp')}</span>
+        <span class="nu-name">${next.poi.icon} ${esc(poiName(next.poi))}</span>
+        <span class="nu-meta">${esc(t('trip.stopOf', {
+          region: regionName(next.poi.region), n: next.order, total: pr.total, xp: next.poi.xp,
+        }))}</span>
+      </div>` : ''}
+
+    <!-- Selected pin, above the map so the map never scrolls away -->
+    <div class="poi-panel" id="poi-panel" hidden></div>
+
+    <div class="map-stage">${renderMap(stops, trip.start)}</div>
+
+    <div class="stop-list">${stopListHTML(trip, true)}</div>`;
 
   $('#back-to-trips').addEventListener('click', () => switchView('trips'));
-  host.querySelectorAll('[data-visit]').forEach(btn =>
-    btn.addEventListener('click', e => { e.stopPropagation(); toggleVisited(trip, btn.dataset.visit); })
-  );
-  wireMarkerHover(host);
+  wireMapMarkers(host);
+  wireStopList(host, trip);
   hydratePhotos(host);
+}
+
+/** Tapping a pin opens the panel above the map rather than scrolling. */
+function wireMapMarkers(scope, trip = null, interactive = true) {
+  scope.querySelectorAll('.map-marker').forEach(m => {
+    const open = () => openPoiPanel(m.dataset.poi, scope, trip, interactive);
+    m.addEventListener('click', open);
+    m.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
+    });
+  });
 }
 
 function toggleVisited(trip, poiId) {
@@ -499,17 +555,39 @@ function toggleVisited(trip, poiId) {
   renderHeader();
 }
 
-function wireMarkerHover(scope) {
-  scope.querySelectorAll('.map-marker').forEach(m => {
-    m.addEventListener('click', () => {
-      const stop = scope.querySelector(`.stop[data-poi="${m.dataset.poi}"]`);
-      if (stop) {
-        stop.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        stop.classList.add('flash');
-        setTimeout(() => stop.classList.remove('flash'), 1600);
-      }
+/** Rows in the list below the map expand in place. */
+function wireStopList(scope, trip) {
+  scope.querySelectorAll('[data-toggle]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const item = btn.closest('.sl-item');
+      const body = item.querySelector('.sl-body');
+      const open = body.hidden;
+      // one open at a time keeps the list scannable
+      scope.querySelectorAll('.sl-item').forEach(other => {
+        if (other === item) return;
+        other.classList.remove('is-open');
+        other.querySelector('.sl-body').hidden = true;
+        other.querySelector('[data-toggle]').setAttribute('aria-expanded', 'false');
+      });
+      body.hidden = !open;
+      item.classList.toggle('is-open', open);
+      btn.setAttribute('aria-expanded', String(open));
+      if (open) hydratePhotos(item);
     });
   });
+
+  // visit buttons live in panels and rows that are rebuilt constantly,
+  // so delegate rather than rebinding after every render
+  if (!scope.dataset.visitWired) {
+    scope.dataset.visitWired = '1';
+    scope.addEventListener('click', e => {
+      const btn = e.target.closest('[data-visit]');
+      if (!btn || !scope.contains(btn)) return;
+      e.stopPropagation();
+      const t2 = user.trips.find(x => x.id === openTripId);
+      if (t2) toggleVisited(t2, btn.dataset.visit);
+    });
+  }
 }
 
 
@@ -523,25 +601,34 @@ let photoTarget = null;   // poiId awaiting a file from the shared picker
 async function hydratePhotos(scope) {
   const ids = await listPhotoIds(user.name);
   for (const id of ids) {
-    const stop = scope.querySelector(`.stop[data-poi="${id}"]`);
-    if (!stop || stop.querySelector('.stop-photo')) continue;
+    const slots = [...scope.querySelectorAll(`[data-photo-slot="${id}"]`)]
+      .filter(slot => !slot.querySelector('.stop-photo'));
+    if (!slots.length) continue;
     const dataUrl = await getPhoto(user.name, id);
     if (!dataUrl) continue;
-    attachThumb(stop, id, dataUrl);
+    slots.forEach(slot => attachThumb(slot, id, dataUrl));
   }
 }
 
-function attachThumb(stop, poiId, dataUrl) {
-  stop.querySelector('.stop-photo')?.remove();
+/**
+ * A location can be on screen twice — expanded in the list and open in
+ * the panel above the map — so the thumbnail is filled per slot rather
+ * than once per location.
+ */
+function attachThumb(slot, poiId, dataUrl) {
   const poi = POI_BY_ID[poiId];
+  const label = t('photo.alt', { name: poiName(poi) });
+  slot.innerHTML = '';
   const fig = document.createElement('button');
   fig.type = 'button';
   fig.className = 'stop-photo';
-  fig.title = t('photo.alt', { name: poiName(poi) });
-  fig.innerHTML = `<img src="${dataUrl}" alt="${esc(t('photo.alt', { name: poiName(poi) }))}">`;
+  fig.title = label;
+  fig.innerHTML = `<img src="${dataUrl}" alt="${esc(label)}">`;
   fig.addEventListener('click', e => { e.stopPropagation(); openPhoto(poiId, dataUrl); });
-  stop.querySelector('.stop-body').appendChild(fig);
-  const btn = stop.querySelector(`[data-photo="${poiId}"]`);
+  slot.appendChild(fig);
+
+  const host = slot.closest('.sl-body, .poi-panel');
+  const btn = host && host.querySelector(`[data-photo="${poiId}"]`);
   if (btn) { btn.classList.add('has-photo'); btn.title = t('photo.replace'); }
 }
 
@@ -585,8 +672,8 @@ function wirePhotos() {
     try {
       const dataUrl = await compressImage(file);
       await savePhoto(user.name, poiId, dataUrl);
-      const stop = document.querySelector(`.stop[data-poi="${poiId}"]`);
-      if (stop) attachThumb(stop, poiId, dataUrl);
+      document.querySelectorAll(`[data-photo-slot="${poiId}"]`)
+        .forEach(slot => attachThumb(slot, poiId, dataUrl));
       toastInfo(t('photo.saved', { name: poiName(POI_BY_ID[poiId]) }), '📸');
     } catch {
       toastInfo(t('photo.failed'), '⚠️');
