@@ -16,28 +16,54 @@
   <div id="auth-screen" hidden>
     <div class="auth-split">
       <aside class="auth-brand">
+        <!-- Decorative Highland scene, injected by js/hero-scene.js -->
+        <div class="hero-art" id="hero-art" aria-hidden="true"></div>
+        <div class="hero-scrim" aria-hidden="true"></div>
+
         <div class="brand-inner">
           <div class="brand-eyebrow" data-i18n="auth.eyebrow">Scotland · Est. Adventure</div>
           <div class="wordmark">BRAW<span class="wordmark-dot">.</span></div>
+          <div class="brand-rule" aria-hidden="true"></div>
           <p class="brand-tag" data-i18n-html="auth.tagline">Your personal Scottish expedition, <strong>intelligently charted</strong>.</p>
+
+          <!-- Counts are filled from the dataset so they can never drift -->
+          <ul class="brand-stats">
+            <li><b id="stat-places">87</b><span data-i18n="auth.stat.places">locations</span></li>
+            <li><b id="stat-interests">21</b><span data-i18n="auth.stat.interests">interests</span></li>
+            <li><b id="stat-badges">17</b><span data-i18n="auth.stat.badges">achievements</span></li>
+          </ul>
+
           <ul class="brand-feats">
             <li>
               <span class="feat-icon">🧭</span>
-              <span data-i18n-html="auth.feat.route">Describe any interest — kayaking, castles, whisky — and get a <strong>personalised route</strong> across Scotland.</span>
+              <span class="feat-text">
+                <b data-i18n="auth.feat.route.t">Plan by sentence</b>
+                <i data-i18n="auth.feat.route.b">One line becomes a full route</i>
+              </span>
             </li>
             <li>
               <span class="feat-icon">📍</span>
-              <span data-i18n-html="auth.feat.gps">Live GPS tracking detects when you <strong>arrive at each location</strong> and prompts you to log it.</span>
+              <span class="feat-text">
+                <b data-i18n="auth.feat.gps.t">Live GPS</b>
+                <i data-i18n="auth.feat.gps.b">It knows when you arrive</i>
+              </span>
             </li>
             <li>
               <span class="feat-icon">🏅</span>
-              <span data-i18n-html="auth.feat.xp">Earn XP and unlock <strong>achievements</strong> as you explore every region.</span>
+              <span class="feat-text">
+                <b data-i18n="auth.feat.xp.t">XP &amp; badges</b>
+                <i data-i18n="auth.feat.xp.b">Level up as you explore</i>
+              </span>
             </li>
             <li>
               <span class="feat-icon">🏆</span>
-              <span data-i18n-html="auth.feat.leaderboard">Compare progress with other explorers on the <strong>live leaderboard</strong>.</span>
+              <span class="feat-text">
+                <b data-i18n="auth.feat.leaderboard.t">Leaderboard</b>
+                <i data-i18n="auth.feat.leaderboard.b">Climb past other explorers</i>
+              </span>
             </li>
           </ul>
+
           <div class="brand-divider"></div>
           <div class="brand-foot" data-i18n-html="auth.foot">Prototype · Scotland only · GPS &amp; geofencing included · No data leaves your device</div>
         </div>

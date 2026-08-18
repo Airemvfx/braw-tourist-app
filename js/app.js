@@ -7,6 +7,7 @@ import { store } from './store.js';
 import { awardXP, evaluateAchievements, userStats, toastInfo, burstConfetti, setQuiet, activityText } from './gamification.js';
 import { generateTrip, tripProgress, tripStopIds, tripTitle, paceLabel } from './planner.js';
 import { renderMap } from './scotland-map.js';
+import { renderHero } from './hero-scene.js';
 import {
   t, getLang, setLang, onLangChange, applyStatic, LANGS,
   poiName, poiBlurb, regionName, poiTime, cityName,
@@ -577,9 +578,18 @@ function timeAgo(ts) {
 // Wire up
 // ============================================================
 
+/** Landing artwork + the proof figures beneath it, straight from the dataset. */
+function renderLanding() {
+  $('#hero-art').innerHTML = renderHero();
+  $('#stat-places').textContent = POIS.length;
+  $('#stat-interests').textContent = Object.keys(INTERESTS).length;
+  $('#stat-badges').textContent = ACHIEVEMENTS.length;
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   document.documentElement.lang = getLang();
   applyStatic();
+  renderLanding();
   wireLanguage();
   wireAuth();
   wireNav();

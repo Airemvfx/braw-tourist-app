@@ -203,6 +203,17 @@ small { font-size: 0.78em; }
     radial-gradient(ellipse 500px 400px at -10% 10%, rgba(79,158,122,0.07) 0%, transparent 55%);
 }
 
+/* Artwork sits behind the copy; the scrim keeps text legible over the
+   brighter moonlit midground. */
+.hero-art { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
+.hero-scrim {
+  position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(9,16,24,0.82) 0%, rgba(9,16,24,0.35) 32%, rgba(9,16,24,0) 55%,
+                            rgba(9,16,24,0.45) 82%, rgba(9,16,24,0.72) 100%),
+    linear-gradient(90deg, rgba(9,16,24,0.78) 0%, rgba(9,16,24,0.25) 45%, rgba(9,16,24,0) 75%);
+}
+
 .brand-inner { position: relative; z-index: 1; max-width: 500px; }
 .brand-eyebrow {
   font-family: var(--font-mono);
@@ -231,17 +242,62 @@ small { font-size: 0.78em; }
 }
 .brand-tag strong { color: var(--text); font-style: normal; }
 
-.brand-feats { list-style: none; display: grid; gap: 1.1rem; }
+/* Surveyor's rule under the wordmark, echoing the map's scale bar. */
+.brand-rule {
+  width: 190px; height: 9px; margin-top: 1.4rem;
+  background:
+    linear-gradient(var(--amber), var(--amber)) left   center / 100% 1px no-repeat,
+    linear-gradient(var(--amber), var(--amber)) left   center / 1.6px 100% no-repeat,
+    linear-gradient(var(--amber), var(--amber)) center center / 1.6px 70%  no-repeat,
+    linear-gradient(var(--amber), var(--amber)) right  center / 1.6px 100% no-repeat;
+  opacity: 0.5;
+}
+
+/* Proof figures, read straight from the dataset. */
+.brand-stats {
+  list-style: none; display: flex; flex-wrap: wrap; gap: 0.5rem;
+  margin: 0 0 1.9rem;
+}
+.brand-stats li {
+  display: flex; align-items: baseline; gap: 0.35rem;
+  padding: 0.4rem 0.75rem;
+  background: rgba(10,18,28,0.55);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  backdrop-filter: blur(3px);
+}
+.brand-stats b {
+  font-family: var(--font-mono); font-size: 0.95rem;
+  color: var(--amber-light); font-weight: 600;
+}
+.brand-stats span {
+  font-size: 0.7rem; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+/* Four scannable tiles rather than four paragraphs. */
+.brand-feats {
+  list-style: none;
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+}
 .brand-feats li {
-  display: flex; gap: 0.9rem; align-items: flex-start;
-  font-size: 0.97rem; color: var(--text-dim);
+  display: flex; gap: 0.65rem; align-items: flex-start;
+  padding: 0.75rem 0.85rem;
+  background: rgba(10,18,28,0.5);
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  backdrop-filter: blur(3px);
+  transition: border-color 0.2s, background 0.2s, transform 0.16s var(--ease-out);
 }
 .brand-feats .feat-icon {
   width: 26px; height: 26px; display: grid; place-items: center;
   background: var(--amber-pale); border: 1px solid rgba(201,138,64,0.25);
   border-radius: 6px; flex-shrink: 0; font-size: 0.85rem;
 }
-.brand-feats strong { color: var(--text); font-weight: 600; }
+.feat-text { display: grid; gap: 0.1rem; min-width: 0; }
+.feat-text b { color: var(--text); font-weight: 600; font-size: 0.87rem; line-height: 1.25; }
+.feat-text i { font-style: normal; color: var(--text-dim); font-size: 0.76rem; line-height: 1.35; }
 
 .brand-divider {
   margin: 2.5rem 0 1.4rem;
@@ -1030,6 +1086,12 @@ small { font-size: 0.78em; }
 
   .lb-row:not(.lb-head):hover { background: rgba(201,138,64,0.08); transform: translateX(3px); }
 
+  .brand-feats li:hover {
+    border-color: var(--border-strong);
+    background: rgba(14,26,40,0.72);
+    transform: translateY(-2px);
+  }
+
   .map-marker:hover .marker-dot { transform: scale(1.18); }
 }
 
@@ -1069,6 +1131,40 @@ small { font-size: 0.78em; }
   }
 }
 
+/* The landing panel carries the artwork, so it tightens rather than
+   simply stacking: narrow screens get the scene, the wordmark and the
+   proof figures, and reach the sign-in card sooner. */
+@media (max-width: 700px) {
+  .brand-feats { grid-template-columns: 1fr; gap: 0.45rem; }
+  .brand-feats li { padding: 0.6rem 0.75rem; }
+}
+@media (max-width: 560px) {
+  .auth-brand { padding: 2.25rem 1.5rem 1.85rem; min-height: 0; align-items: flex-start; }
+  .brand-tag { font-size: 1.12rem; margin: 1rem 0 1.5rem; }
+  .brand-rule { width: 140px; margin-top: 1.1rem; }
+  .brand-stats { gap: 0.4rem; margin-bottom: 0.35rem; }
+  .brand-stats li { padding: 0.32rem 0.6rem; }
+  .brand-stats b { font-size: 0.88rem; }
+  .brand-stats span { font-size: 0.63rem; }
+  /* The four tiles wrap into unreadable slivers this narrow, and the
+     footnote repeats the reassurance already on the sign-in card. */
+  .brand-feats, .brand-divider, .brand-foot { display: none; }
+  /* Nothing sits over the lower band here, so let the glen show through. */
+  .hero-scrim {
+    background:
+      linear-gradient(180deg, rgba(9,16,24,0.80) 0%, rgba(9,16,24,0.30) 38%, rgba(9,16,24,0) 70%),
+      linear-gradient(90deg, rgba(9,16,24,0.55) 0%, rgba(9,16,24,0) 60%);
+  }
+
+  /* The sign-in card's intrinsic width set the grid column, so on a
+     320px phone the whole auth screen scrolled sideways. Grid items
+     default to min-width:auto and refuse to shrink past their content;
+     unpinning that and easing the padding keeps the column on-screen. */
+  .auth-split > * { min-width: 0; }
+  .auth-panel { padding: 1.5rem 1rem 2rem; }
+  .auth-card { padding: 1.6rem 1.25rem; }
+}
+
 @media (max-width: 980px) {
   .auth-split { grid-template-columns: 1fr; }
   .auth-brand { padding: 2.5rem; min-height: 38vh; }
@@ -1095,4 +1191,94 @@ small { font-size: 0.78em; }
   .hdr-user { min-width: 0; }
   .hdr-uname { max-width: 9ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .auth-lang { top: 1rem; right: 1rem; }
+}
+
+/* ============================================================
+   Landing hero — layered Highland glen (see js/hero-scene.js).
+   Art only: every word on the panel is real translated DOM text
+   layered above this, never baked into the SVG.
+   Ids are bh-*, keyframes are bh-*, and every rule is scoped to
+   .hero-art, so the scene cannot collide with the Scotland map.
+   ============================================================ */
+.hero-art .art {
+  position:absolute; inset:0;
+  width:100%; height:100%;
+  display:block;
+}
+@media (max-width:640px) {
+  .hero-art .marg { display:none; }
+  .hero-art .tag { max-width:26ch; }
+  .hero-art .tag br { display:none; }
+  .hero-art .copy { padding-top:clamp(3rem, 8.5vh, 5rem); }
+}
+.hero-art .ridge-1 { animation:bh-drift1 104s cubic-bezier(.45,0,.55,1) infinite alternate; }
+.hero-art .ridge-2 { animation:bh-drift2  92s cubic-bezier(.45,0,.55,1) infinite alternate; }
+.hero-art .ridge-3 { animation:bh-drift3  80s cubic-bezier(.45,0,.55,1) infinite alternate; }
+.hero-art .ridge-4 { animation:bh-drift4  70s cubic-bezier(.45,0,.55,1) infinite alternate; }
+.hero-art .ridge-5 { animation:bh-drift5  61s cubic-bezier(.45,0,.55,1) infinite alternate; }
+.hero-art .ridge-6 { animation:bh-drift6  54s cubic-bezier(.45,0,.55,1) infinite alternate; }
+.hero-art .ridge-7 { animation:bh-drift7  47s cubic-bezier(.45,0,.55,1) infinite alternate; }
+.hero-art .mist-1 { animation:bh-mistA 96s  linear infinite; }
+.hero-art .mist-2 { animation:bh-mistB 128s linear infinite; }
+.hero-art .mist-3 { animation:bh-mistA 112s linear infinite; animation-delay:-40s; }
+.hero-art .mist-4 { animation:bh-mistB 146s linear infinite; animation-delay:-70s; }
+.hero-art .mist-5 { animation:bh-mistA 84s  linear infinite; animation-delay:-25s; }
+.hero-art .aurora-a { animation:bh-auroraA 46s ease-in-out infinite; transform-origin:50% 0%; }
+.hero-art .aurora-b { animation:bh-auroraB 63s ease-in-out infinite; transform-origin:50% 0%; }
+.hero-art .stars-a { animation:bh-twinkle 11s ease-in-out infinite; }
+.hero-art .stars-b { animation:bh-twinkle 15s ease-in-out infinite; animation-delay:-5s; }
+.hero-art .stars-c { animation:bh-twinkle 19s ease-in-out infinite; animation-delay:-11s; }
+.hero-art .glints { animation:bh-twinkle 15s ease-in-out infinite; animation-delay:-5s; }
+.hero-art .moon-halo { animation:bh-halo 24s ease-in-out infinite; transform-origin:772px 478px; }
+.hero-art .glitter { animation:bh-shimmer 17s ease-in-out infinite; }
+.hero-art .ripples { animation:bh-ripple  38s ease-in-out infinite; }
+.hero-art .reflection { animation:bh-ripple  46s ease-in-out infinite; }
+.hero-art .ember { animation:bh-ember 9s ease-in-out infinite; }
+.hero-art .skein { animation:bh-skein 74s linear infinite; }
+@keyframes bh-drift1 { from{ transform:translate3d(-4px,0,0);}  to{ transform:translate3d(4px,0,0);} }
+@keyframes bh-drift2 { from{ transform:translate3d(6px,0,0);}   to{ transform:translate3d(-6px,0,0);} }
+@keyframes bh-drift3 { from{ transform:translate3d(-9px,0,0);}  to{ transform:translate3d(9px,0,0);} }
+@keyframes bh-drift4 { from{ transform:translate3d(12px,0,0);}  to{ transform:translate3d(-12px,0,0);} }
+@keyframes bh-drift5 { from{ transform:translate3d(-16px,0,0);} to{ transform:translate3d(16px,0,0);} }
+@keyframes bh-drift6 { from{ transform:translate3d(20px,0,0);}  to{ transform:translate3d(-20px,0,0);} }
+@keyframes bh-drift7 { from{ transform:translate3d(-26px,0,0);} to{ transform:translate3d(26px,0,0);} }
+@keyframes bh-mistA {
+  0%   { transform:translate3d(-160px,0,0); opacity:0; }
+  17%  { opacity:0.9; }
+  83%  { opacity:0.9; }
+  100% { transform:translate3d(190px,0,0);  opacity:0; }
+}
+@keyframes bh-mistB {
+  0%   { transform:translate3d(180px,0,0);  opacity:0; }
+  18%  { opacity:0.95; }
+  82%  { opacity:0.95; }
+  100% { transform:translate3d(-170px,0,0); opacity:0; }
+}
+@keyframes bh-auroraA {
+  0%,100%{ opacity:0.40; transform:translate3d(-12px,0,0) scaleY(1); }
+  50%    { opacity:0.95; transform:translate3d(12px,0,0)  scaleY(1.07); }
+}
+@keyframes bh-auroraB {
+  0%,100%{ opacity:0.85; transform:translate3d(10px,0,0)  scaleY(1.05); }
+  50%    { opacity:0.32; transform:translate3d(-14px,0,0) scaleY(0.95); }
+}
+@keyframes bh-twinkle { 0%,100%{ opacity:0.32; } 50%{ opacity:0.88; } }
+@keyframes bh-halo {
+  0%,100%{ opacity:0.55; transform:scale(1); }
+  50%    { opacity:0.92; transform:scale(1.05); }
+}
+@keyframes bh-shimmer { 0%,100%{ opacity:0.34; transform:translate3d(-5px,0,0);} 50%{ opacity:0.82; transform:translate3d(5px,0,0);} }
+@keyframes bh-ripple { 0%,100%{ transform:translate3d(-9px,0,0);} 50%{ transform:translate3d(9px,0,0);} }
+@keyframes bh-ember { 0%,100%{ opacity:0.5; } 45%{ opacity:1; } 72%{ opacity:0.7; } }
+@keyframes bh-skein {
+  0%   { transform:translate3d(-60px,14px,0); opacity:0; }
+  14%  { opacity:0.55; }
+  86%  { opacity:0.55; }
+  100% { transform:translate3d(250px,-28px,0); opacity:0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-art *, .hero-art *::before, .hero-art *::after {
+    animation: none !important;
+    transition: none !important;
+  }
 }

@@ -34,10 +34,21 @@ const EN = {
   // ---- auth: brand panel ----
   'auth.eyebrow': 'Scotland · Est. Adventure',
   'auth.tagline': 'Your personal Scottish expedition, <strong>intelligently charted</strong>.',
-  'auth.feat.route': 'Describe any interest — kayaking, castles, whisky — and get a <strong>personalised route</strong> across Scotland.',
-  'auth.feat.gps': 'Live GPS tracking detects when you <strong>arrive at each location</strong> and prompts you to log it.',
-  'auth.feat.xp': 'Earn XP and unlock <strong>achievements</strong> as you explore every region.',
-  'auth.feat.leaderboard': 'Compare progress with other explorers on the <strong>live leaderboard</strong>.',
+
+  // Landing features: a short label plus one clause. Scannable tiles,
+  // not paragraphs — the artwork carries the atmosphere instead.
+  'auth.feat.route.t': 'Plan by sentence',
+  'auth.feat.route.b': 'One line becomes a full route',
+  'auth.feat.gps.t': 'Live GPS',
+  'auth.feat.gps.b': 'It knows when you arrive',
+  'auth.feat.xp.t': 'XP & badges',
+  'auth.feat.xp.b': 'Level up as you explore',
+  'auth.feat.leaderboard.t': 'Leaderboard',
+  'auth.feat.leaderboard.b': 'Climb past other explorers',
+
+  'auth.stat.places': 'locations',
+  'auth.stat.interests': 'interests',
+  'auth.stat.badges': 'achievements',
   'auth.foot': 'Prototype · Scotland only · GPS &amp; geofencing included · No data leaves your device',
 
   // ---- auth: form ----
@@ -294,10 +305,19 @@ const PL = {
   // ---- auth: brand panel ----
   'auth.eyebrow': 'Szkocja · Przygoda od zawsze',
   'auth.tagline': 'Twoja osobista szkocka wyprawa, <strong>inteligentnie zaplanowana</strong>.',
-  'auth.feat.route': 'Opisz swoje zainteresowania — kajaki, zamki, whisky — a otrzymasz <strong>spersonalizowaną trasę</strong> po Szkocji.',
-  'auth.feat.gps': 'Śledzenie GPS na żywo wykrywa, kiedy <strong>docierasz do celu</strong>, i przypomina o odhaczeniu go.',
-  'auth.feat.xp': 'Zdobywaj PD i odblokowuj <strong>osiągnięcia</strong>, zwiedzając kolejne regiony.',
-  'auth.feat.leaderboard': 'Porównuj postępy z innymi odkrywcami w <strong>rankingu na żywo</strong>.',
+
+  'auth.feat.route.t': 'Plan w jednym zdaniu',
+  'auth.feat.route.b': 'Jedno zdanie to gotowa trasa',
+  'auth.feat.gps.t': 'GPS na żywo',
+  'auth.feat.gps.b': 'Wie, kiedy docierasz na miejsce',
+  'auth.feat.xp.t': 'PD i odznaki',
+  'auth.feat.xp.b': 'Zdobywaj poziomy, zwiedzając',
+  'auth.feat.leaderboard.t': 'Ranking',
+  'auth.feat.leaderboard.b': 'Wyprzedzaj innych odkrywców',
+
+  'auth.stat.places': 'miejsc',
+  'auth.stat.interests': 'zainteresowań',
+  'auth.stat.badges': 'osiągnięć',
   'auth.foot': 'Prototyp · Tylko Szkocja · GPS i geofencing w zestawie · Żadne dane nie opuszczają Twojego urządzenia',
 
   // ---- auth: form ----
