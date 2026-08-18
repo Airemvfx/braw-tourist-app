@@ -50,6 +50,9 @@
 /* ---------- reset ---------- */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { scroll-behavior: smooth; }
+/* A class that sets `display` otherwise silently defeats the hidden
+   attribute — .thinking (display:grid) was rendering an empty card. */
+[hidden] { display: none !important; }
 
 body {
   font-family: var(--font-ui);
@@ -1018,6 +1021,62 @@ small { font-size: 0.78em; }
 /* ============================================================
    RESPONSIVE
    ============================================================ */
+/* ---- Button busy state ---------------------------------- */
+.btn.is-loading { cursor: progress; opacity: 0.92; }
+.btn.is-loading::before {
+  content: ''; width: 0.85em; height: 0.85em; flex-shrink: 0;
+  border: 2px solid currentColor; border-right-color: transparent;
+  border-radius: 50%;
+  animation: btn-spin 0.62s linear infinite;
+}
+.btn.is-loading:hover { transform: none; }
+@keyframes btn-spin { to { transform: rotate(360deg); } }
+
+/* ---- "Add more journeys" prompt under the trip list ------- */
+.trips-cta {
+  width: 100%; margin-top: 1rem; padding: 1.05rem 1.2rem;
+  display: flex; align-items: center; gap: 0.95rem;
+  text-align: left; cursor: pointer;
+  font-family: var(--font-ui); color: var(--text);
+  background: rgba(20,32,46,0.55);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--r);
+  transition: border-color 0.2s, background 0.2s, transform 0.16s var(--ease-out);
+}
+.tcta-icon {
+  width: 40px; height: 40px; flex-shrink: 0;
+  display: grid; place-items: center; font-size: 1.15rem;
+  background: var(--amber-pale);
+  border: 1px solid rgba(201,138,64,0.28);
+  border-radius: 10px;
+}
+.tcta-text { display: grid; gap: 0.12rem; flex: 1; min-width: 0; }
+.tcta-text b { font-weight: 600; font-size: 0.98rem; }
+.tcta-text i { font-style: normal; font-size: 0.82rem; color: var(--text-dim); }
+.tcta-go {
+  flex-shrink: 0; font-size: 0.85rem; font-weight: 600;
+  color: var(--amber-light); white-space: nowrap;
+}
+.trips-cta:active { transform: scale(0.99); }
+
+/* ---- Glen behind the quest planner ----------------------- */
+#view-plan { position: relative; }
+.plan-art, .plan-art-scrim {
+  position: absolute; left: 50%; top: -2.2rem;
+  width: 100vw; height: 760px; margin-left: -50vw;
+  z-index: 0; pointer-events: none;
+}
+.plan-art { opacity: 0.8; }
+/* Held still: this sits behind an input the user is reading and typing
+   into, where drifting scenery is a distraction rather than atmosphere. */
+.plan-art * { animation: none !important; }
+.plan-art-scrim {
+  background: linear-gradient(180deg,
+    rgba(14,21,32,0.58) 0%, rgba(14,21,32,0.26) 30%,
+    rgba(14,21,32,0.42) 58%, rgba(14,21,32,0.80) 86%, var(--bg) 100%);
+}
+#view-plan > *:not(.plan-art):not(.plan-art-scrim) { position: relative; z-index: 1; }
+
 /* ============================================================
    Interaction & motion
    Press feedback applies everywhere; lift-on-hover is gated behind
@@ -1058,7 +1117,7 @@ small { font-size: 0.78em; }
 .lb-row:not(.lb-head) { transition: background 0.18s, transform 0.16s var(--ease-out); }
 
 /* Icons that react to their parent */
-.tc-icon, .stat-icon, .badge-shield { transition: transform 0.26s var(--ease-pop); }
+.tc-icon, .stat-icon, .badge-shield, .tcta-icon { transition: transform 0.26s var(--ease-pop); }
 .tc-icon, .stat-icon { display: inline-block; }
 
 /* SVG markers: cx/cy are 0 inside the translated group, so plain
@@ -1085,6 +1144,13 @@ small { font-size: 0.78em; }
   .stat:hover .stat-icon { transform: scale(1.16); }
 
   .lb-row:not(.lb-head):hover { background: rgba(201,138,64,0.08); transform: translateX(3px); }
+
+  .trips-cta:hover {
+    border-color: var(--border-active);
+    background: rgba(25,40,64,0.7);
+    transform: translateY(-2px);
+  }
+  .trips-cta:hover .tcta-icon { transform: scale(1.08) rotate(-8deg); }
 
   .brand-feats li:hover {
     border-color: var(--border-strong);
@@ -1180,6 +1246,13 @@ small { font-size: 0.78em; }
   .hdr-nav::-webkit-scrollbar { display: none; }
   .lb-row { grid-template-columns: 40px 1.6fr 1fr 0.7fr 0.9fr; }
   .lb-row span:nth-child(4) { display: none; }
+}
+
+/* The CTA's three columns collapse into slivers on a phone. */
+@media (max-width: 560px) {
+  .trips-cta { flex-wrap: wrap; gap: 0.7rem 0.85rem; padding: 0.95rem 1rem; }
+  .tcta-text { flex: 1 1 60%; }
+  .tcta-go { flex: 1 0 100%; text-align: right; }
 }
 
 /* Phones: the header's right-hand cluster gains the language switcher,

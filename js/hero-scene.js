@@ -15,8 +15,13 @@
 // composition (moon, glen throat, castle islet, shoreline stones).
 // ============================================================
 
-export function renderHero() {
-  return `<svg class="art" aria-hidden="true" focusable="false" viewBox="0 0 1440 1000" preserveAspectRatio="xMidYMid slice"
+/**
+ * @param {string} suffix  Namespace for this instance's ids. Two copies of
+ *   the scene on one page would otherwise share ids, and every gradient
+ *   and clip reference would resolve to whichever copy parsed first.
+ */
+export function renderHero(suffix = '') {
+  const svg = `<svg class="art" aria-hidden="true" focusable="false" viewBox="0 0 1440 1000" preserveAspectRatio="xMidYMid slice"
        xmlns="http://www.w3.org/2000/svg" role="img"
        aria-label="A layered low-poly illustration of a Scottish glen at night: seven ranks of mountain ridges receding into mist, a low moon rising behind the furthest ridge, a still loch, and a small castle on an island for scale.">
 
@@ -477,4 +482,5 @@ export function renderHero() {
     <rect x="-260" y="-60" width="1960" height="1120" fill="url(#bh-grainP)"
           opacity="0.055" style="mix-blend-mode:overlay"/>
   </svg>`;
+  return suffix ? svg.replace(/bh-/g, `bh-${suffix}-`) : svg;
 }

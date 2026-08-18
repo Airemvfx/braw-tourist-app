@@ -93,8 +93,9 @@ const EN = {
   'plan.placeholder': "e.g. I'm really into kayaking and wild swimming… or 5 days of highland castles from Inverness…",
   'plan.hint': '⌘ / Ctrl + Enter to generate',
   'plan.go': 'Generate itinerary →',
+  'plan.generating': 'Charting your route…',
   'plan.examples': 'Try an example',
-  'plan.tooShort': 'Tell me a wee bit more about your dream trip!',
+  'plan.tooShort': 'Tell me a wee bit about your dream trip first!',
   'plan.think.read': 'Reading your wishes…',
   'plan.think.scout': 'Scouting {count} Scottish locations…',
   'plan.think.match': 'Matching interests and scoring stops…',
@@ -132,6 +133,9 @@ const EN = {
   'trips.card.meta': '{days} days · {stops} stops · ≈{dist} · from {start}',
   'trips.card.completed': 'COMPLETED',
   'trips.card.progress': '{done} of {total} locations visited',
+  'trips.cta.title': 'Want to add more journeys?',
+  'trips.cta.body': 'Describe another trip and we will chart it for you',
+  'trips.cta.action': 'Plan a new quest →',
 
   // ---- achievements ----
   'badges.title': 'Achievements',
@@ -362,8 +366,9 @@ const PL = {
   'plan.placeholder': 'np. Kręcą mnie kajaki i morsowanie… albo 5 dni górskich zamków z Inverness…',
   'plan.hint': '⌘ / Ctrl + Enter, aby wygenerować',
   'plan.go': 'Wygeneruj plan →',
+  'plan.generating': 'Wytyczam trasę…',
   'plan.examples': 'Wypróbuj przykład',
-  'plan.tooShort': 'Opowiedz mi trochę więcej o wymarzonej podróży!',
+  'plan.tooShort': 'Napisz najpierw kilka słów o wymarzonej podróży!',
   'plan.think.read': 'Czytam Twoje życzenia…',
   'plan.think.scout': 'Przeszukuję {count} szkockich miejsc…',
   'plan.think.match': 'Dopasowuję zainteresowania i oceniam przystanki…',
@@ -401,6 +406,9 @@ const PL = {
   'trips.card.meta': 'dni: {days} · przystanków: {stops} · ok. {dist} · start: {start}',
   'trips.card.completed': 'UKOŃCZONA',
   'trips.card.progress': 'Odwiedzono {done} z {total} miejsc',
+  'trips.cta.title': 'Chcesz dodać kolejne wyprawy?',
+  'trips.cta.body': 'Opisz następną podróż, a wytyczymy Ci trasę',
+  'trips.cta.action': 'Zaplanuj nową wyprawę →',
 
   // ---- achievements ----
   'badges.title': 'Osiągnięcia',

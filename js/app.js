@@ -184,6 +184,7 @@ function switchView(name) {
 function wireNav() {
   $$('.nav-btn').forEach(b => b.addEventListener('click', () => switchView(b.dataset.view)));
   $('#home-btn').addEventListener('click', () => { openTripId = null; switchView(homeView()); });
+  $('#trips-cta').addEventListener('click', () => switchView('plan'));
   $('#logout-btn').addEventListener('click', () => {
     store.logout();
     user = null; draftTrip = null; openTripId = null;
@@ -196,6 +197,11 @@ function wireNav() {
 // ============================================================
 
 function renderPlan() {
+  // Second copy of the landing glen, id-namespaced so its gradients and
+  // clips cannot be captured by the one on the auth screen.
+  const art = $('#plan-art');
+  if (!art.firstChild) art.innerHTML = renderHero('plan');
+
   const host = $('#example-chips');
   host.innerHTML = examplePrompts()
     .map(p => `<button class="chip" data-prompt="${esc(p)}">${esc(p)}</button>`).join('');
@@ -214,25 +220,58 @@ const THINKING_STEPS = [
   ['✨', 'plan.think.polish'],
 ];
 
+/** Honour the OS reduced-motion setting for programmatic scrolling too. */
+function scrollTo(el, block = 'center') {
+  if (!el) return;
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block });
+}
+
 async function runPlanner() {
+  const btn = $('#plan-go');
+  if (btn.dataset.busy === '1') return;          // ignore double-taps mid-run
+
   const text = $('#plan-input').value.trim();
-  if (text.length < 8) { toastInfo(t('plan.tooShort'), '✍️'); return; }
+  // A single interest word is a legitimate prompt — "whisky", "golf",
+  // "skye" all resolve fine, with the planner's defaults filling the rest.
+  // The old 8-character floor rejected them silently, which read as a
+  // dead button. Only genuinely empty input is turned away now.
+  if (text.length < 3) { toastInfo(t('plan.tooShort'), '✍️'); return; }
+
+  // The planner takes a couple of seconds and its output renders further
+  // down the page. On a phone the button looked inert and the work was
+  // invisible below the fold, so say so on the button AND move the view
+  // to the progress list.
+  btn.dataset.busy = '1';
+  btn.disabled = true;
+  btn.classList.add('is-loading');
+  btn.textContent = t('plan.generating');
 
   $('#plan-result').hidden = true;
   const think = $('#plan-thinking');
   think.hidden = false;
   think.innerHTML = '';
-  for (const [icon, key] of THINKING_STEPS) {
-    const row = document.createElement('div');
-    row.className = 'think-step';
-    row.innerHTML = `<span>${icon}</span> ${esc(t(key, { count: POIS.length }))}`;
-    think.appendChild(row);
-    requestAnimationFrame(() => row.classList.add('on'));
-    await new Promise(r => setTimeout(r, 380 + Math.random() * 220));
+  scrollTo(think);
+
+  try {
+    for (const [icon, key] of THINKING_STEPS) {
+      const row = document.createElement('div');
+      row.className = 'think-step';
+      row.innerHTML = `<span>${icon}</span> ${esc(t(key, { count: POIS.length }))}`;
+      think.appendChild(row);
+      requestAnimationFrame(() => row.classList.add('on'));
+      await new Promise(r => setTimeout(r, 380 + Math.random() * 220));
+    }
+    draftTrip = generateTrip(text);
+    think.hidden = true;
+    renderDraft();
+    scrollTo($('#plan-result'), 'start');
+  } finally {
+    btn.dataset.busy = '0';
+    btn.disabled = false;
+    btn.classList.remove('is-loading');
+    btn.textContent = t('plan.go');
   }
-  draftTrip = generateTrip(text);
-  think.hidden = true;
-  renderDraft();
 }
 
 // Icons stay in the dataset; labels come from the locale.
@@ -294,6 +333,8 @@ function saveDraft() {
 
 function renderTrips() {
   const host = $('#trips-list');
+  const cta = $('#trips-cta');
+  cta.hidden = !user.trips.length;
   if (!user.trips.length) {
     host.innerHTML = `
       <div class="empty-state card">
