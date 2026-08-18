@@ -27,7 +27,10 @@
   /* Text */
   --text:      #e8e2d8;
   --text-dim:  #8a9285;
-  --text-faint:#4e5852;
+  /* Measured, not guessed: #4e5852 sat at 2.2–2.5:1 on the dark surfaces,
+     below AA for the mono labels, hints and captions that use it most.
+     This keeps the same green-grey hue at ~5:1 on the page. */
+  --text-faint:#7f8b83;
 
   /* Borders */
   --border:        rgba(200,170,110,0.12);
@@ -1961,4 +1964,268 @@ small { font-size: 0.78em; }
     animation: none !important;
     transition: none !important;
   }
+}
+
+/* ============================================================
+   JOURNEY BUILDER — the hand-made map editor
+   Mobile first: a full-bleed map with the numbers pinned above it,
+   the picker below. The wide layout puts the map and the picker
+   side by side (see the grid at the bottom of this block).
+   ============================================================ */
+
+/* ---- live figures ---- */
+.bd-summary { margin-bottom: 0.9rem; }
+.bd-tiles {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem;
+}
+.bd-tile {
+  display: grid; justify-items: center; gap: 0.15rem;
+  padding: 0.65rem 0.35rem;
+  background: var(--inset-1); border: 1px solid var(--border);
+  border-radius: 11px; text-align: center;
+}
+.bdt-icon { font-size: 0.95rem; line-height: 1; }
+.bdt-val {
+  font-family: var(--font-mono); font-size: 1.02rem; font-weight: 600;
+  color: var(--text); line-height: 1.1;
+}
+.bdt-label {
+  font-family: var(--font-mono); font-size: 0.56rem; letter-spacing: 0.11em;
+  text-transform: uppercase; color: var(--text-faint); line-height: 1.2;
+}
+.bd-breakdown {
+  margin-top: 0.5rem; padding: 0.5rem 0.7rem;
+  font-size: 0.76rem; color: var(--text-dim); line-height: 1.45;
+  background: var(--inset-1); border: 1px solid var(--border);
+  border-left: 3px solid var(--sage); border-radius: 9px;
+}
+.bd-breakdown.is-warn { border-left-color: var(--rose); color: var(--text); }
+
+.bd-maphint {
+  margin: -0.5rem 0 1rem;
+  font-family: var(--font-mono); font-size: 0.62rem;
+  color: var(--text-faint); text-align: center; line-height: 1.5;
+}
+
+/* ---- unselected locations on the map ---- */
+.map-cand { cursor: pointer; }
+.map-cand .cand-hit { fill: transparent; }        /* a finger-sized target */
+.map-cand .cand-dot {
+  fill: var(--map-dot); stroke: var(--sage);
+  stroke-width: 1.4; opacity: 0.7;
+  transition: opacity 0.16s, transform 0.16s var(--ease-pop);
+}
+.map-cand:hover .cand-dot, .map-cand:focus .cand-dot { opacity: 1; transform: scale(1.5); }
+.map-cand.is-active .cand-dot { opacity: 1; transform: scale(1.7); stroke: var(--text); stroke-width: 2; }
+
+/* ---- controls ---- */
+.bd-controls {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 0.7rem;
+  margin-bottom: 1.1rem;
+}
+.bd-field { display: grid; gap: 0.3rem; min-width: 0; }
+.bd-flabel {
+  font-family: var(--font-mono); font-size: 0.58rem; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--text-faint);
+}
+.bd-flabel i { font-style: normal; text-transform: none; letter-spacing: 0.04em; opacity: 0.8; }
+.bd-select {
+  width: 100%; padding: 0.55rem 0.6rem;
+  font-family: var(--font-ui); font-size: 0.86rem; color: var(--text);
+  background: var(--inset-1); border: 1px solid var(--border-strong);
+  border-radius: 9px; cursor: pointer;
+}
+.bd-seg { display: flex; gap: 0.3rem; }
+.bd-segb {
+  flex: 1 1 0; min-width: 0; padding: 0.55rem 0.4rem;
+  font-family: var(--font-ui); font-size: 0.76rem; font-weight: 500;
+  color: var(--text-dim); background: var(--inset-1);
+  border: 1px solid var(--border-strong); border-radius: 9px; cursor: pointer;
+  transition: color 0.16s, background 0.16s, border-color 0.16s;
+}
+.bd-segb.active {
+  color: var(--amber-ink); background: var(--amber-pale);
+  border-color: var(--border-active);
+}
+.bd-stepper {
+  display: grid; grid-template-columns: 40px 1fr 40px; align-items: center;
+  background: var(--inset-1); border: 1px solid var(--border-strong); border-radius: 9px;
+}
+.bd-stepper button {
+  height: 38px; background: none; border: 0; cursor: pointer;
+  color: var(--text-dim); font-size: 1.1rem; line-height: 1;
+  border-radius: 9px; transition: background 0.16s, color 0.16s;
+}
+.bd-stepper button:active { background: var(--wash-2); color: var(--amber-ink); }
+.bd-stepper b { text-align: center; font-family: var(--font-mono); font-size: 0.95rem; }
+
+/* ---- route / catalogue tabs ---- */
+.bd-tabs {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 0.35rem;
+  padding: 0.25rem; margin-bottom: 0.9rem;
+  background: var(--inset-1); border: 1px solid var(--border); border-radius: 11px;
+}
+.bd-tab {
+  padding: 0.6rem 0.5rem; border: 0; border-radius: 8px; cursor: pointer;
+  font-family: var(--font-ui); font-size: 0.84rem; font-weight: 500;
+  color: var(--text-dim); background: none;
+  transition: color 0.16s, background 0.16s;
+}
+.bd-tab.active { color: var(--amber-ink); background: var(--amber-pale); }
+
+/* ---- the route so far ---- */
+.bd-leg {
+  padding: 0.15rem 0 0.15rem 0.6rem;
+  font-family: var(--font-mono); font-size: 0.63rem;
+  color: var(--text-faint); letter-spacing: 0.03em;
+}
+.bd-row, .bd-arow {
+  display: grid; align-items: center; gap: 0.55rem;
+  padding: 0.5rem 0.6rem; margin-bottom: 0.35rem;
+  background: var(--inset-1); border: 1px solid var(--border); border-radius: 11px;
+}
+.bd-row  { grid-template-columns: 26px 22px 1fr auto; }
+.bd-arow { grid-template-columns: 22px 1fr auto; }
+.bd-rowname {
+  display: grid; gap: 0.1rem; min-width: 0;
+  background: none; border: 0; padding: 0; cursor: pointer; text-align: left;
+  font-family: var(--font-ui); color: var(--text);
+}
+.bd-rowname b { font-size: 0.88rem; font-weight: 500; }
+.bd-rowname i {
+  font-style: normal; font-family: var(--font-mono);
+  font-size: 0.63rem; color: var(--text-faint);
+}
+.bd-rowbtns { display: flex; gap: 0.25rem; }
+.bd-icon {
+  width: 32px; height: 32px; border-radius: 8px; cursor: pointer;
+  background: var(--wash-1); border: 1px solid var(--border);
+  color: var(--text-dim); font-size: 0.85rem; line-height: 1;
+  transition: background 0.16s, color 0.16s, transform 0.14s var(--ease-out);
+}
+.bd-icon:active { transform: scale(0.9); }
+.bd-icon[disabled] { opacity: 0.3; cursor: default; }
+.bd-del:not([disabled]):active { color: var(--rose); }
+.bd-add {
+  padding: 0.4rem 0.7rem; border-radius: 8px; cursor: pointer;
+  font-family: var(--font-ui); font-size: 0.76rem; font-weight: 600;
+  color: var(--amber-ink); background: var(--amber-pale);
+  border: 1px solid var(--border-active); white-space: nowrap;
+  transition: transform 0.14s var(--ease-out), background 0.16s;
+}
+.bd-add:active { transform: scale(0.95); }
+
+.bd-empty {
+  display: grid; gap: 0.8rem; justify-items: center; text-align: center;
+  padding: 1.6rem 1rem; color: var(--text-dim); font-size: 0.88rem;
+  background: var(--inset-1); border: 1px dashed var(--border-strong); border-radius: 12px;
+}
+
+/* ---- catalogue ---- */
+.bd-search {
+  width: 100%; padding: 0.62rem 0.75rem; margin-bottom: 0.9rem;
+  font-family: var(--font-ui); font-size: 0.88rem; color: var(--text);
+  background: var(--inset-1); border: 1px solid var(--border-strong); border-radius: 10px;
+}
+.bd-search:focus {
+  outline: none; border-color: var(--amber-ink);
+  box-shadow: 0 0 0 3px var(--amber-pale);
+}
+.bd-search::placeholder { color: var(--text-faint); }
+.bd-filters { max-height: 8.4rem; overflow-y: auto; padding-bottom: 0.2rem; }
+.bd-filters .chip { font-size: 0.76rem; padding: 0.32rem 0.65rem; }
+.bd-filters .chip.active {
+  color: var(--amber-ink); background: var(--amber-pale); border-color: var(--border-active);
+}
+.bd-count {
+  margin: 0.8rem 0 0.5rem;
+  font-family: var(--font-mono); font-size: 0.62rem; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--text-faint);
+}
+.bd-list { max-height: 60vh; overflow-y: auto; padding-right: 0.15rem; }
+.bd-group { margin-bottom: 0.9rem; }
+.bd-ghead {
+  position: sticky; top: 0; z-index: 1;
+  padding: 0.35rem 0.2rem; margin-bottom: 0.3rem;
+  font-family: var(--font-mono); font-size: 0.6rem; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--amber-ink);
+  background: var(--bg);
+}
+
+/* ---- kit, advisories, stamps ---- */
+.bd-brief { padding: 1.1rem 1.2rem; margin-top: 1.2rem; }
+.bd-btitle { font-family: var(--font-display); font-size: 1.15rem; }
+.bd-bsub {
+  margin-top: 0.15rem; font-family: var(--font-mono); font-size: 0.62rem;
+  letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-faint);
+}
+.bd-kit { list-style: none; display: grid; gap: 0.5rem; margin-top: 0.9rem; }
+.bd-kit li {
+  display: grid; grid-template-columns: 26px 1fr; gap: 0.1rem 0.55rem;
+  align-items: baseline;
+}
+.bd-kit .bdk-icon { grid-row: span 2; font-size: 1.05rem; text-align: center; }
+.bd-kit b { font-size: 0.87rem; font-weight: 500; }
+.bd-kit i { font-style: normal; font-size: 0.76rem; color: var(--text-faint); line-height: 1.45; }
+.bd-adv { list-style: none; display: grid; gap: 0.75rem; margin-top: 0.9rem; }
+.bd-adv li { display: grid; grid-template-columns: 26px 1fr; gap: 0.55rem; }
+.bd-adv .bdk-icon { font-size: 1.05rem; text-align: center; }
+.bd-adv b { font-size: 0.87rem; font-weight: 600; }
+.bd-adv p { margin-top: 0.15rem; font-size: 0.79rem; color: var(--text-dim); line-height: 1.5; }
+.bd-stampcard { border-color: rgba(217,184,74,0.35); }
+
+.bd-actions { display: flex; gap: 0.6rem; flex-wrap: wrap; margin-top: 1.4rem; }
+.bd-actions .btn { flex: 1 1 auto; justify-content: center; }
+.bd-actions .btn[disabled] { opacity: 0.45; cursor: default; }
+
+/* ---- narrow phones ---- */
+@media (max-width: 400px) {
+  .bd-tiles { gap: 0.35rem; }
+  .bd-tile { padding: 0.55rem 0.2rem; }
+  .bdt-val { font-size: 0.92rem; }
+  .bdt-label { font-size: 0.5rem; letter-spacing: 0.07em; }
+  .bd-controls { grid-template-columns: 1fr; }
+}
+
+/* ---- wide layout: map and picker side by side ---- */
+@media (min-width: 981px) {
+  #view-build {
+    display: grid;
+    grid-template-columns: minmax(360px, 1fr) minmax(360px, 460px);
+    grid-template-areas:
+      "head  head"
+      "sum   side"
+      "poi   side"
+      "map   side"
+      "hint  side"
+      "ctrl  side"
+      "brief side"
+      "pad   side"
+      "act   act";
+    /* The picker spans seven rows; the empty 1fr row soaks up any height
+       it has over the left column, so the map is not pushed apart to
+       match — the same trap the trip detail grid fell into. */
+    grid-template-rows: auto auto auto auto auto auto auto 1fr auto;
+    column-gap: 1.8rem; align-items: start;
+  }
+  #view-build > .view-head   { grid-area: head; }
+  #view-build > .bd-summary  { grid-area: sum; }
+  #view-build > .poi-panel   { grid-area: poi; margin-bottom: 0.9rem; }
+  #view-build > .map-stage   { grid-area: map; }
+  #view-build > .bd-maphint  { grid-area: hint; }
+  #view-build > .bd-controls { grid-area: ctrl; }
+  #view-build > .bd-side     { grid-area: side; }
+  #view-build > #bd-brief    { grid-area: brief; }
+  #view-build > .bd-actions  { grid-area: act; }
+
+  #view-build > .map-stage {
+    width: auto; left: auto; margin-left: 0; margin-top: 0;
+    height: clamp(420px, 62vh, 640px);
+    border: 1px solid var(--border); border-radius: var(--r);
+  }
+  /* Bounded, not unbounded: 87 rows unrolled turns the page into a
+     7,000px scroll and strands the map at the top of it. */
+  .bd-list { max-height: 52vh; }
+  #bd-brief { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1.2rem; }
+  .bd-brief { margin-top: 1.2rem; }
 }

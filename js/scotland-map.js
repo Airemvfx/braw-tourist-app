@@ -100,6 +100,21 @@ export function renderMap(stops = [], start = null, userPos = null, opts = {}) {
     })
     .join('');
 
+  // Selectable-but-unselected locations, for the journey builder. Drawn
+  // small and dim beneath the route so a filtered map reads as "what is
+  // still on offer" without competing with the stops already chosen.
+  const candidates = (opts.candidates || [])
+    .map(poi => {
+      const [x, y] = project(poi.lon, poi.lat);
+      return `
+      <g class="map-cand" data-cand="${poi.id}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})" tabindex="0" role="button" aria-label="${esc(poiName(poi))}">
+        <circle class="cand-hit" r="14"></circle>
+        <circle class="cand-dot" r="4.5"></circle>
+        <title>${esc(`${poiName(poi)} — ${regionName(poi.region)}`)}</title>
+      </g>`;
+    })
+    .join('');
+
   const startMarker = start
     ? (() => {
         const [x, y] = project(start.lon, start.lat);
@@ -169,6 +184,8 @@ export function renderMap(stops = [], start = null, userPos = null, opts = {}) {
       <path d="M0,-20 L5,6 L0,1 L-5,6 Z" class="compass-needle"/>
       <text y="-32" text-anchor="middle" class="compass-n">N</text>
     </g>
+
+    <g class="map-cands">${candidates}</g>
 
     ${routePts.length > 1 ? `
       <path class="map-route" d="${routeD}" fill="none"/>

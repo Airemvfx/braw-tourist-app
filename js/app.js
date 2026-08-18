@@ -2,11 +2,15 @@
 // BRAW — app shell: auth, navigation, views, event wiring.
 // ============================================================
 
-import { POIS, POI_BY_ID, INTERESTS, LEVELS, XP_EVENTS, ACHIEVEMENTS, RIVALS, REGIONS } from './data.js';
+import { POIS, POI_BY_ID, INTERESTS, LEVELS, XP_EVENTS, ACHIEVEMENTS, RIVALS, REGIONS, START_CITIES } from './data.js';
+import {
+  routeStats, optimiseOrder, equipmentFor, advisoriesFor,
+  stampPreview, buildCustomTrip,
+} from './builder.js';
 import { store } from './store.js';
 import { initTheme, setMode, getMode, onThemeChange } from './theme.js';
 import { awardXP, evaluateAchievements, evaluateStamps, regionProgress, userStats, toastInfo, burstConfetti, setQuiet, activityText } from './gamification.js';
-import { generateTrip, tripProgress, tripStopIds, tripTitle, paceLabel } from './planner.js';
+import { generateTrip, tripProgress, tripStopIds, tripTitle, paceLabel, distKm } from './planner.js';
 import { renderMap } from './scotland-map.js';
 import { renderHero } from './hero-scene.js';
 import { renderShowcase, startShowcase, stopShowcase } from './showcase.js';
@@ -191,13 +195,13 @@ function renderHeader() {
 // Navigation
 // ============================================================
 
-const VIEWS = ['plan', 'trips', 'trip', 'badges', 'play', 'leaderboard', 'profile'];
+const VIEWS = ['plan', 'build', 'trips', 'trip', 'badges', 'play', 'leaderboard', 'profile'];
 
 function switchView(name) {
   currentView = name;
   for (const v of VIEWS) $(`#view-${v}`).hidden = v !== name;
   $$('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.view === name));
-  const renderers = { plan: renderPlan, trips: renderTrips, trip: renderTripDetail, badges: renderBadges, play: renderGame, leaderboard: renderLeaderboard, profile: renderProfile };
+  const renderers = { plan: renderPlan, build: renderBuild, trips: renderTrips, trip: renderTripDetail, badges: renderBadges, play: renderGame, leaderboard: renderLeaderboard, profile: renderProfile };
   renderers[name]?.();
   renderHeader();
   window.scrollTo({ top: 0 });
@@ -205,6 +209,7 @@ function switchView(name) {
 
 function wireNav() {
   $$('.nav-btn').forEach(b => b.addEventListener('click', () => switchView(b.dataset.view)));
+  $$('.bd-tab').forEach(b => b.addEventListener('click', () => setBuildTab(b.dataset.bdTab)));
   $('#trips-cta').addEventListener('click', () => switchView('plan'));
   $('#logout-btn').addEventListener('click', () => {
     store.logout();
@@ -392,6 +397,483 @@ function renderTrips() {
   host.querySelectorAll('.trip-card').forEach(c =>
     c.addEventListener('click', () => { openTripId = c.dataset.trip; switchView('trip'); })
   );
+}
+
+// ============================================================
+// View: Journey builder
+//
+// The planner writes a route from a sentence. This is the other door:
+// every location in the dataset, filterable, orderable, and costed live
+// as stops go on and come off. Everything it produces is an ordinary
+// quest, so GPS tracking, XP and the passport all work unchanged.
+// ============================================================
+
+const build = {
+  ids: [],              // selected locations, in route order
+  startKey: 'edinburgh',
+  auto: true,           // keep the order shortest-first
+  days: 0,              // 0 → follow the recommendation
+  filters: new Set(),   // interest keys
+  query: '',
+  tab: 'route',
+};
+
+const bdStart = () => START_CITIES[build.startKey];
+const bdPois = () => build.ids.map(id => POI_BY_ID[id]).filter(Boolean);
+const bdStats = () => routeStats(bdPois(), bdStart(), build.days);
+const bdDays = s => build.days || s.daysNeeded;
+
+/** One decimal below ten hours, whole numbers above — and localised. */
+function fmtH(h) {
+  const v = h < 10 ? Math.round(h * 10) / 10 : Math.round(h);
+  return v.toLocaleString(locale());
+}
+
+/** A duration with its unit. Short hops read as minutes, not "0 h". */
+function fmtDur(h) {
+  return h < 1
+    ? t('build.mins', { n: Math.max(5, Math.round(h * 60)) })
+    : t('build.hours', { h: fmtH(h) });
+}
+
+const bdDistance = s => formatDistance({ distanceKm: s.km, distanceMi: s.mi });
+
+/** SVG markers are not buttons, so give them the keyboard too. */
+function onActivate(el, fn) {
+  el.addEventListener('click', fn);
+  el.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fn(); }
+  });
+}
+
+/** In auto mode build.ids IS the optimised order — one source of truth. */
+function bdReorder() {
+  if (build.auto) build.ids = optimiseOrder(bdStart(), bdPois()).map(p => p.id);
+}
+
+/** Everything still on offer, after the filters and the search box. */
+function bdCandidates() {
+  const chosen = new Set(build.ids);
+  const q = build.query.trim().toLowerCase();
+  const wanted = new Set([...build.filters].flatMap(k => INTERESTS[k].tags));
+  return POIS.filter(p => {
+    if (chosen.has(p.id)) return false;
+    if (wanted.size && !p.tags.some(tag => wanted.has(tag))) return false;
+    if (!q) return true;
+    // Search both languages, so either spelling of a place finds it.
+    return `${poiName(p)} ${p.name} ${regionName(p.region)} ${p.region} ${poiBlurb(p)}`
+      .toLowerCase().includes(q);
+  });
+}
+
+function renderBuild() {
+  bdReorder();
+  renderBuildSummary();
+  renderBuildMap();
+  renderBuildControls();
+  renderBuildTabs();
+  renderBuildRoute();
+  renderBuildAdd();
+  renderBuildBrief();
+  renderBuildActions();
+}
+
+/** Redraw everything except the add pane, whose input holds the caret. */
+function refreshBuild() {
+  bdReorder();
+  renderBuildSummary();
+  renderBuildMap();
+  renderBuildControls();
+  renderBuildTabs();
+  renderBuildRoute();
+  refreshAddList();
+  renderBuildBrief();
+  renderBuildActions();
+}
+
+function renderBuildSummary() {
+  const s = bdStats();
+  const tiles = [
+    ['📍', s.stops, t('build.stat.stops')],
+    ['🚗', s.stops ? bdDistance(s) : '—', t('build.stat.distance')],
+    ['⏱️', s.stops ? fmtDur(s.totalHours) : '—', t('build.stat.time')],
+    ['✦', s.stops ? formatNumber(s.xp + XP_EVENTS.CREATE_TRIP) : '—', t('build.stat.xp')],
+  ];
+  $('#bd-summary').innerHTML = `
+    <div class="bd-tiles">
+      ${tiles.map(([icon, val, label]) => `
+        <div class="bd-tile">
+          <span class="bdt-icon">${icon}</span>
+          <b class="bdt-val">${esc(String(val))}</b>
+          <span class="bdt-label">${esc(label)}</span>
+        </div>`).join('')}
+    </div>
+    ${s.stops ? `
+      <div class="bd-breakdown ${s.hoursPerDay > 10 ? 'is-warn' : ''}">
+        ${esc(t('build.perDay', {
+          h: fmtH(s.hoursPerDay), days: bdDays(s),
+          drive: fmtH(s.driveHours), stops: fmtH(s.stopHours),
+        }))}
+      </div>` : ''}`;
+}
+
+function renderBuildMap() {
+  const stops = bdPois().map((poi, i) => ({ poi, visited: false, order: i + 1 }));
+  const scope = $('#view-build');
+  $('#bd-map').innerHTML = renderMap(stops, bdStart(), null, {
+    idSuffix: 'bd', candidates: bdCandidates(),
+  });
+  scope.querySelectorAll('.map-marker').forEach(m => onActivate(m, () => openBuilderPoi(m.dataset.poi)));
+  scope.querySelectorAll('.map-cand').forEach(m => onActivate(m, () => openBuilderPoi(m.dataset.cand)));
+  // keep the open location highlighted across redraws
+  const open = $('#bd-panel').dataset.poi;
+  if (open) scope.querySelectorAll(`[data-poi="${open}"].map-marker, [data-cand="${open}"]`)
+    .forEach(m => m.classList.add('is-active'));
+}
+
+/** The tapped location, above the map, with the one action that matters. */
+function openBuilderPoi(poiId) {
+  const poi = POI_BY_ID[poiId];
+  if (!poi) return;
+  const on = build.ids.includes(poiId);
+  const panel = $('#bd-panel');
+  panel.dataset.poi = poiId;
+  panel.innerHTML = `
+    <button type="button" class="poi-close" id="bd-panel-close"
+            aria-label="${esc(t('photo.close'))}" title="${esc(t('photo.close'))}">✕</button>
+    <div class="poi-head">
+      <span class="poi-icon">${poi.icon}</span>
+      <span class="poi-name">${esc(poiName(poi))}</span>
+    </div>
+    <div class="pd-meta">${esc(regionName(poi.region))} · ${esc(poiTime(poi.time))} · <span class="stop-xp">✦ ${poi.xp} ${t('unit.xp')}</span></div>
+    <p class="pd-blurb">${esc(poiBlurb(poi))}</p>
+    <div class="pd-actions">
+      <button class="btn ${on ? 'btn-ghost' : 'btn-primary'} btn-sm bd-toggle" data-bd-toggle="${poiId}">
+        ${on ? t('build.remove') : t('build.addAction')}
+      </button>
+    </div>`;
+  panel.hidden = false;
+  $('#bd-panel-close').addEventListener('click', closeBuilderPoi);
+  panel.querySelector('[data-bd-toggle]').addEventListener('click', () => toggleBuildStop(poiId));
+  $('#view-build').querySelectorAll('.map-marker, .map-cand').forEach(m =>
+    m.classList.toggle('is-active', m.dataset.poi === poiId || m.dataset.cand === poiId));
+  panel.scrollIntoView({ block: 'nearest' });
+}
+
+function closeBuilderPoi() {
+  const panel = $('#bd-panel');
+  panel.hidden = true;
+  panel.innerHTML = '';
+  delete panel.dataset.poi;
+  $('#view-build').querySelectorAll('.map-marker, .map-cand').forEach(m => m.classList.remove('is-active'));
+}
+
+/**
+ * No toast here on purpose: building a route means a dozen taps in a
+ * row, and a dozen stacked toasts sit right on top of the map. The
+ * figures, the pin, the tab count and the row leaving the catalogue all
+ * change immediately, which is feedback enough.
+ */
+function toggleBuildStop(poiId) {
+  const at = build.ids.indexOf(poiId);
+  if (at >= 0) build.ids.splice(at, 1);
+  else build.ids.push(poiId);
+  refreshBuild();
+  if (!$('#bd-panel').hidden) openBuilderPoi(poiId);
+}
+
+function renderBuildControls() {
+  const s = bdStats();
+  $('#bd-controls').innerHTML = `
+    <label class="bd-field">
+      <span class="bd-flabel">${t('build.startLabel')}</span>
+      <select id="bd-start" class="bd-select">
+        ${Object.entries(START_CITIES).map(([key, city]) =>
+          `<option value="${key}" ${key === build.startKey ? 'selected' : ''}>${esc(cityName(city.name))}</option>`).join('')}
+      </select>
+    </label>
+
+    <div class="bd-field">
+      <span class="bd-flabel">${t('build.orderLabel')}</span>
+      <div class="bd-seg" role="group" aria-label="${esc(t('build.orderLabel'))}">
+        <button type="button" class="bd-segb ${build.auto ? 'active' : ''}" data-bd-order="auto">${t('build.order.auto')}</button>
+        <button type="button" class="bd-segb ${build.auto ? '' : 'active'}" data-bd-order="manual">${t('build.order.manual')}</button>
+      </div>
+    </div>
+
+    <div class="bd-field">
+      <span class="bd-flabel">${t('build.daysLabel')} <i>${esc(t('build.daysRec', { n: s.daysNeeded }))}</i></span>
+      <div class="bd-stepper">
+        <button type="button" data-bd-days="-1" aria-label="−">−</button>
+        <b>${bdDays(s)}</b>
+        <button type="button" data-bd-days="1" aria-label="+">+</button>
+      </div>
+    </div>`;
+
+  $('#bd-start').addEventListener('change', e => {
+    build.startKey = e.target.value;
+    refreshBuild();
+  });
+  $$('#bd-controls [data-bd-order]').forEach(b => b.addEventListener('click', () => {
+    // Switching to manual keeps whatever order is on screen, so the list
+    // never rearranges itself under the user's finger.
+    build.auto = b.dataset.bdOrder === 'auto';
+    refreshBuild();
+  }));
+  $$('#bd-controls [data-bd-days]').forEach(b => b.addEventListener('click', () => {
+    const stats = bdStats();
+    const max = Math.max(1, Math.min(10, build.ids.length || 1));
+    build.days = Math.max(1, Math.min(max, bdDays(stats) + Number(b.dataset.bdDays)));
+    refreshBuild();
+  }));
+}
+
+function renderBuildTabs() {
+  const tabs = { route: `${t('build.tab.route')} (${build.ids.length})`, add: t('build.tab.add') };
+  $$('.bd-tab').forEach(b => {
+    const key = b.dataset.bdTab;
+    b.textContent = tabs[key];
+    const on = build.tab === key;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-selected', String(on));
+  });
+  $('#bd-pane-route').hidden = build.tab !== 'route';
+  $('#bd-pane-add').hidden = build.tab !== 'add';
+}
+
+function setBuildTab(name) {
+  build.tab = name;
+  renderBuildTabs();
+}
+
+/** The route so far: order, legs between stops, and the way out of each. */
+function renderBuildRoute() {
+  const pois = bdPois();
+  const host = $('#bd-pane-route');
+  if (!pois.length) {
+    host.innerHTML = `
+      <div class="bd-empty">
+        <p>${t('build.routeEmpty')}</p>
+        <button class="btn btn-primary btn-sm" id="bd-goadd">${t('build.routeEmptyCta')}</button>
+      </div>`;
+    $('#bd-goadd').addEventListener('click', () => setBuildTab('add'));
+    return;
+  }
+
+  let cursor = bdStart();
+  host.innerHTML = pois.map((p, i) => {
+    const km = Math.round(distKm(cursor, p) * 1.3);
+    cursor = p;
+    const leg = `<div class="bd-leg">↳ ${esc(bdDistance({ km, mi: Math.round(km * 0.621) }))} · ${esc(fmtDur(km / 60))}</div>`;
+    return leg + `
+      <div class="bd-row">
+        <span class="sl-order">${i + 1}</span>
+        <span class="sl-icon">${p.icon}</span>
+        <button type="button" class="bd-rowname" data-bd-open="${p.id}">
+          <b>${esc(poiName(p))}</b>
+          <i>${esc(regionName(p.region))} · ${esc(poiTime(p.time))} · ✦ ${p.xp}</i>
+        </button>
+        <span class="bd-rowbtns">
+          ${build.auto ? '' : `
+            <button type="button" class="bd-icon" data-bd-move="${i}|-1" ${i === 0 ? 'disabled' : ''}
+                    title="${esc(t('build.moveUp'))}" aria-label="${esc(t('build.moveUp'))}">↑</button>
+            <button type="button" class="bd-icon" data-bd-move="${i}|1" ${i === pois.length - 1 ? 'disabled' : ''}
+                    title="${esc(t('build.moveDown'))}" aria-label="${esc(t('build.moveDown'))}">↓</button>`}
+          <button type="button" class="bd-icon bd-del" data-bd-remove="${p.id}"
+                  title="${esc(t('build.remove'))}" aria-label="${esc(t('build.remove'))}">✕</button>
+        </span>
+      </div>`;
+  }).join('');
+
+  host.querySelectorAll('[data-bd-open]').forEach(b =>
+    b.addEventListener('click', () => openBuilderPoi(b.dataset.bdOpen)));
+  host.querySelectorAll('[data-bd-remove]').forEach(b =>
+    b.addEventListener('click', () => toggleBuildStop(b.dataset.bdRemove)));
+  host.querySelectorAll('[data-bd-move]').forEach(b =>
+    b.addEventListener('click', () => {
+      const [from, step] = b.dataset.bdMove.split('|').map(Number);
+      const to = from + step;
+      if (to < 0 || to >= build.ids.length) return;
+      const [moved] = build.ids.splice(from, 1);
+      build.ids.splice(to, 0, moved);
+      refreshBuild();
+    }));
+}
+
+/** The catalogue: search, interest filters, and every remaining location. */
+function renderBuildAdd() {
+  $('#bd-pane-add').innerHTML = `
+    <input type="search" id="bd-q" class="bd-search" value="${esc(build.query)}"
+           placeholder="${esc(t('build.search'))}" aria-label="${esc(t('build.search'))}">
+    <div class="chips-label">${t('build.filters')}</div>
+    <div class="chips-row bd-filters">
+      <button type="button" class="chip ${build.filters.size ? '' : 'active'}" data-bd-filter="">${t('build.filter.all')}</button>
+      ${Object.entries(INTERESTS).map(([key, def]) =>
+        `<button type="button" class="chip ${build.filters.has(key) ? 'active' : ''}" data-bd-filter="${key}">${def.icon} ${esc(interestLabel(key))}</button>`).join('')}
+    </div>
+    <div class="bd-count" id="bd-count"></div>
+    <div class="bd-list" id="bd-list"></div>`;
+
+  // Typing must not cost the caret, so only the list below is redrawn.
+  $('#bd-q').addEventListener('input', e => {
+    build.query = e.target.value;
+    refreshAddList();
+    renderBuildMap();
+  });
+  $$('#bd-pane-add [data-bd-filter]').forEach(b => b.addEventListener('click', () => {
+    const key = b.dataset.bdFilter;
+    if (!key) build.filters.clear();
+    else if (build.filters.has(key)) build.filters.delete(key);
+    else build.filters.add(key);
+    $$('#bd-pane-add [data-bd-filter]').forEach(other => other.classList.toggle(
+      'active', other.dataset.bdFilter ? build.filters.has(other.dataset.bdFilter) : !build.filters.size));
+    refreshAddList();
+    renderBuildMap();
+  }));
+
+  refreshAddList();
+}
+
+function refreshAddList() {
+  const host = $('#bd-list');
+  if (!host) return;
+  const list = bdCandidates();
+  $('#bd-count').textContent = t('build.showing', { shown: list.length, total: POIS.length });
+
+  if (!list.length) {
+    host.innerHTML = `
+      <div class="bd-empty">
+        <p>${t('build.noMatch')}</p>
+        <button class="btn btn-ghost btn-sm" id="bd-clearf">${t('build.clearFilters')}</button>
+      </div>`;
+    $('#bd-clearf').addEventListener('click', () => {
+      build.filters.clear();
+      build.query = '';
+      renderBuildAdd();
+      renderBuildMap();
+    });
+    return;
+  }
+
+  // Grouped by region, in dataset order, so the list reads like a tour.
+  const groups = [];
+  for (const poi of list) {
+    const last = groups[groups.length - 1];
+    if (last && last.region === poi.region) last.pois.push(poi);
+    else groups.push({ region: poi.region, pois: [poi] });
+  }
+
+  host.innerHTML = groups.map(g => `
+    <section class="bd-group">
+      <header class="bd-ghead">${esc(regionName(g.region))}</header>
+      ${g.pois.map(p => `
+        <div class="bd-arow">
+          <span class="sl-icon">${p.icon}</span>
+          <button type="button" class="bd-rowname" data-bd-open="${p.id}">
+            <b>${esc(poiName(p))}</b>
+            <i>${esc(poiTime(p.time))} · ✦ ${p.xp} ${t('unit.xp')}</i>
+          </button>
+          <button type="button" class="bd-add" data-bd-add="${p.id}">+ ${t('build.add')}</button>
+        </div>`).join('')}
+    </section>`).join('');
+
+  host.querySelectorAll('[data-bd-open]').forEach(b =>
+    b.addEventListener('click', () => openBuilderPoi(b.dataset.bdOpen)));
+  host.querySelectorAll('[data-bd-add]').forEach(b =>
+    b.addEventListener('click', () => toggleBuildStop(b.dataset.bdAdd)));
+}
+
+/**
+ * What the chosen stops imply: the kit they demand, the warnings they
+ * earn, and any passport stamp the journey would put in reach.
+ */
+function renderBuildBrief() {
+  const pois = bdPois();
+  const host = $('#bd-brief');
+  if (!pois.length) { host.innerHTML = ''; return; }
+
+  const s = bdStats();
+  const kit = equipmentFor(pois);
+  const advisories = advisoriesFor(pois, s);
+  const stamps = stampPreview(pois, user);
+  const params = { km: bdDistance(s), h: fmtH(s.hoursPerDay) };
+
+  host.innerHTML = `
+    <section class="card bd-brief">
+      <h3 class="bd-btitle">🎒 ${t('build.kit')}</h3>
+      <p class="bd-bsub">${t('build.kitSub')}</p>
+      <ul class="bd-kit">
+        ${kit.map(k => `
+          <li>
+            <span class="bdk-icon">${k.icon}</span>
+            <b>${esc(t(`kit.${k.id}.name`))}</b>
+            <i>${esc(t(`kit.${k.id}.why`))}</i>
+          </li>`).join('')}
+      </ul>
+    </section>
+
+    ${advisories.length ? `
+      <section class="card bd-brief">
+        <h3 class="bd-btitle">⚠️ ${t('build.advisories')}</h3>
+        <ul class="bd-adv">
+          ${advisories.map(a => `
+            <li>
+              <span class="bdk-icon">${a.icon}</span>
+              <div>
+                <b>${esc(t(`adv.${a.id}.name`))}</b>
+                <p>${esc(t(`adv.${a.id}.body`, params))}</p>
+              </div>
+            </li>`).join('')}
+        </ul>
+      </section>` : ''}
+
+    ${stamps.length ? `
+      <section class="card bd-brief bd-stampcard">
+        <h3 class="bd-btitle">🛂 ${t('build.stamps')}</h3>
+        <ul class="bd-adv">
+          ${stamps.map(r => `
+            <li>
+              <span class="bdk-icon">${r.icon}</span>
+              <div><p>${esc(t('build.stampsBody', { region: regionName(r.name) }))}</p></div>
+            </li>`).join('')}
+        </ul>
+      </section>` : ''}`;
+}
+
+function renderBuildActions() {
+  const n = build.ids.length;
+  $('#bd-actions').innerHTML = `
+    <button class="btn btn-primary" id="bd-save" ${n < 2 ? 'disabled' : ''}>${t('build.save')}</button>
+    ${n ? `<button class="btn btn-ghost" id="bd-clear">${t('build.clear')}</button>` : ''}`;
+
+  $('#bd-save').addEventListener('click', saveBuild);
+  $('#bd-clear')?.addEventListener('click', () => {
+    build.ids = [];
+    build.days = 0;
+    closeBuilderPoi();
+    refreshBuild();
+  });
+}
+
+function saveBuild() {
+  if (build.ids.length < 2) { toastInfo(t('build.needStops'), '🧭'); return; }
+  const trip = buildCustomTrip({
+    ids: build.ids, start: bdStart(), days: bdDays(bdStats()),
+  });
+  user.trips.unshift(trip);
+  awardXP(user, XP_EVENTS.CREATE_TRIP, 'act.questCreated', { title: tripTitle(trip) }, '🗺️');
+  evaluateAchievements(user);
+  store.save();
+
+  build.ids = [];
+  build.days = 0;
+  build.query = '';
+  build.filters.clear();
+  build.tab = 'route';
+  closeBuilderPoi();
+
+  openTripId = trip.id;
+  switchView('trip');
 }
 
 // ============================================================

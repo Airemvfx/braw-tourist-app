@@ -12,7 +12,7 @@ import { t as translate } from './i18n.js';
 
 const KM_PER_DEG = 111;
 
-function distKm(a, b) {
+export function distKm(a, b) {
   const dLat = (a.lat - b.lat) * KM_PER_DEG;
   const dLon = (a.lon - b.lon) * KM_PER_DEG * Math.cos(((a.lat + b.lat) / 2) * Math.PI / 180);
   return Math.hypot(dLat, dLon);
@@ -116,7 +116,9 @@ export function tripTitle(trip) {
     : names.length === 1 ? names[0]
     : translate('planner.themeDefault');
   const days = trip.days?.length || trip.dayCount || 0;
-  return translate('planner.tripTitle', { days, theme });
+  // Hand-built journeys say so, so they are distinguishable at a glance
+  // in the quest list from the ones the planner charted.
+  return translate(trip.custom ? 'planner.customTitle' : 'planner.tripTitle', { days, theme });
 }
 
 /** Localised pace label, tolerating trips saved before paceKey existed. */

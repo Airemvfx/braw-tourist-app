@@ -248,6 +248,52 @@ export const REGIONS = [...new Set(POIS.map(p => p.region))].map(name => ({
   poiIds: POIS.filter(p => p.region === name).map(p => p.id),
 }));
 
+// ------------------------------------------------------------
+// Journey builder: kit and advisories.
+//
+// Structure only, as everywhere else in this file — the packing-list
+// labels and the reason lines live in i18n.js under `kit.*` / `adv.*`.
+// `tags` are matched against the POI tags of the stops actually chosen,
+// so the list is earned by the route rather than guessed at.
+// ------------------------------------------------------------
+export const EQUIPMENT = [
+  // Scotland-in-any-season staples: no route escapes these two.
+  { id: 'waterproof', icon: '🧥', always: true },
+  { id: 'layers',     icon: '🧣', always: true },
+
+  { id: 'boots',      icon: '🥾', tags: ['hiking', 'mountain', 'climbing'] },
+  { id: 'navigation', icon: '🧭', tags: ['hiking', 'mountain', 'climbing'] },
+  { id: 'headtorch',  icon: '🔦', tags: ['mountain', 'stargazing', 'skiing'] },
+  { id: 'midge',      icon: '🦟', tags: ['nature', 'forest', 'loch', 'waterfall', 'wildswim'] },
+  { id: 'wetsuit',    icon: '🩱', tags: ['wildswim', 'surfing'] },
+  { id: 'drybag',     icon: '🎒', tags: ['kayaking', 'watersports', 'wildswim', 'river'] },
+  { id: 'buoyancy',   icon: '🦺', tags: ['kayaking', 'watersports', 'sea'] },
+  { id: 'helmet',     icon: '⛑️', tags: ['cycling', 'biking', 'climbing'] },
+  { id: 'harness',    icon: '🧗', tags: ['climbing'] },
+  { id: 'skis',       icon: '🎿', tags: ['skiing', 'snowboard'] },
+  { id: 'clubs',      icon: '⛳', tags: ['golf'] },
+  { id: 'binoculars', icon: '🔭', tags: ['wildlife', 'stargazing'] },
+  { id: 'camera',     icon: '📷', tags: ['scenic', 'views', 'film', 'lighthouse'] },
+  { id: 'swimkit',    icon: '🏊', tags: ['beach', 'wildswim'] },
+  { id: 'cash',       icon: '💷', tags: ['island', 'village'] },
+];
+
+// `when` receives { tags, regions, stats } — Sets of the tags and regions
+// present in the journey, plus the computed route figures.
+export const ADVISORIES = [
+  { id: 'ferry',       icon: '⛴️', when: c => c.tags.has('island') },
+  { id: 'singletrack', icon: '🚧', when: c => c.regions.has('North Coast 500') || c.regions.has('Isle of Skye') || c.tags.has('drive') },
+  { id: 'munro',       icon: '🏔️', when: c => c.tags.has('mountain') },
+  { id: 'snow',        icon: '❄️', when: c => c.tags.has('skiing') },
+  { id: 'tides',       icon: '🌊', when: c => c.tags.has('surfing') || c.tags.has('sea') },
+  { id: 'coldwater',   icon: '🥶', when: c => c.tags.has('wildswim') },
+  { id: 'darkness',    icon: '🌌', when: c => c.tags.has('stargazing') },
+  { id: 'booking',     icon: '🎟️', when: c => c.tags.has('whisky') || c.tags.has('castle') },
+  { id: 'driver',      icon: '🚱', when: c => c.tags.has('whisky') },
+  { id: 'longHaul',    icon: '🚗', when: c => c.stats.km >= 800 },
+  { id: 'packedDay',   icon: '⏳', when: c => c.stats.hoursPerDay > 10 },
+];
+
 export const ACHIEVEMENTS = [
   { id: 'first-quest',      icon: '🗺️', xp: 50,  check: s => s.tripsCreated >= 1 },
   { id: 'quest-collector',  icon: '📋', xp: 75,  check: s => s.tripsCreated >= 3 },

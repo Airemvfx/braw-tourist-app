@@ -138,6 +138,7 @@
     <header class="app-header">
       <nav class="hdr-nav">
         <button class="nav-btn" data-view="plan" data-i18n="nav.plan">New Quest</button>
+        <button class="nav-btn" data-view="build" data-i18n="nav.build">Build</button>
         <button class="nav-btn" data-view="trips" data-i18n="nav.trips">My Quests</button>
         <button class="nav-btn" data-view="badges" data-i18n="nav.badges">Achievements</button>
         <button class="nav-btn" data-view="play" data-i18n="nav.play">Play</button>
@@ -188,6 +189,40 @@
         <div id="example-chips" class="chips-row"></div>
         <div id="plan-thinking" class="thinking card" hidden></div>
         <div id="plan-result" hidden></div>
+      </section>
+
+      <!-- Journey builder -->
+      <section id="view-build" hidden>
+        <div class="view-head">
+          <h1 class="view-title" data-i18n-html="build.title">Craft your own <em>journey</em></h1>
+          <p class="view-sub" data-i18n="build.sub">Every location in Scotland, yours to arrange.</p>
+        </div>
+
+        <!-- Live figures, recomputed on every change -->
+        <div class="bd-summary" id="bd-summary"></div>
+
+        <!-- Selected location, above the map so the map never scrolls away -->
+        <div class="poi-panel" id="bd-panel" hidden></div>
+
+        <div class="map-stage" id="bd-map"></div>
+        <p class="bd-maphint" data-i18n="build.mapHint">Tap a small dot to see a location · tap a numbered pin to open a stop</p>
+
+        <div class="bd-controls" id="bd-controls"></div>
+
+        <!-- Wrapper so the wide layout can place the whole picker in one
+             grid cell; a spanning item would stretch the left column. -->
+        <div class="bd-side">
+          <div class="bd-tabs" role="tablist">
+            <button class="bd-tab active" data-bd-tab="route" role="tab"></button>
+            <button class="bd-tab" data-bd-tab="add" role="tab"></button>
+          </div>
+          <div class="bd-pane" id="bd-pane-route" role="tabpanel"></div>
+          <div class="bd-pane" id="bd-pane-add" role="tabpanel" hidden></div>
+        </div>
+
+        <div id="bd-brief"></div>
+
+        <div class="bd-actions" id="bd-actions"></div>
       </section>
 
       <!-- Trip list -->
