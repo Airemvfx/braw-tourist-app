@@ -1,5 +1,5 @@
 {
-  "_comment": "Original Scottish photography. Entries are verified at load time: any file that is not present yet is skipped silently, so this list can be filled in before the images are committed. Captions may be a plain string or {en, pl}.",
+  "_comment": "Original Scottish photography. Entries are verified at load time: any file that is missing or unreadable is skipped silently. Captions may be a plain string or {en, pl}.",
   "images": [
     {
       "src": "images/skye-glen-falls.jpg",
@@ -22,9 +22,24 @@
       "caption": { "en": "Bog cotton on the moor", "pl": "Wełnianka na wrzosowisku" }
     },
     {
+      "src": "images/20210704_142501.jpg",
+      "alt": "A green hillside dropping away into a glen, rock and fern in the foreground",
+      "caption": { "en": "Above the glen", "pl": "Nad doliną" }
+    },
+    {
+      "src": "images/20210703_185439.jpg",
+      "alt": "A bare branch reaching over the mirror-still surface of a wooded loch",
+      "caption": { "en": "Still water", "pl": "Spokojna woda" }
+    },
+    {
       "src": "images/portree-harbour.jpg",
-      "alt": "The painted houses of Portree harbour reflected in still water, Isle of Skye",
+      "alt": "A small boat moored below the painted houses of Portree harbour, Isle of Skye",
       "caption": { "en": "Portree Harbour, Skye", "pl": "Port Portree, Skye" }
+    },
+    {
+      "src": "images/20210704_153331.jpg",
+      "alt": "The painted houses of Portree reflected in still water, seen from the shore garden",
+      "caption": { "en": "Portree from the shore", "pl": "Portree znad brzegu" }
     }
   ]
 }

@@ -33,24 +33,27 @@ export function captionOf(photo) {
   return typeof c === 'string' ? c : (c[getLang()] || c.en || '');
 }
 
-/** True once the browser can actually decode this URL. */
-function loads(src) {
-  return new Promise(resolve => {
-    const img = new Image();
-    img.onload = () => resolve(true);
-    img.onerror = () => resolve(false);
-    img.src = src;
-  });
+/**
+ * Does this file exist? Deliberately a HEAD request rather than loading
+ * the image: an <img> probe would download every photo in full just to
+ * check it is there, which for full-resolution originals means tens of
+ * megabytes before the page is even usable.
+ */
+async function exists(src) {
+  try {
+    const res = await fetch(src, { method: 'HEAD' });
+    return res.ok;
+  } catch { return false; }
 }
 
 /**
  * Load the manifest, keeping only entries whose file actually loads.
  *
- * The verification matters: the manifest can list photos before the files
- * are committed, or carry a typo, and a broken <img> on the landing page
- * is worse than no carousel at all. Resolves to [] on any failure — a
- * missing manifest is the normal state before photos are added, not an
- * error worth surfacing.
+ * The check matters: the manifest can list photos before the files are
+ * committed, or carry a typo, and a broken <img> on the landing page is
+ * worse than no carousel at all. Resolves to [] on any failure — a missing
+ * manifest is the normal state before photos are added, not an error worth
+ * surfacing.
  */
 export async function loadPhotos() {
   try {
@@ -59,7 +62,7 @@ export async function loadPhotos() {
     const data = await res.json();
     const list = (Array.isArray(data) ? data : data.images) || [];
     const candidates = list.filter(p => p && p.src);
-    const ok = await Promise.all(candidates.map(p => loads(encodeURI(p.src))));
+    const ok = await Promise.all(candidates.map(p => exists(encodeURI(p.src))));
     photos = candidates.filter((_, i) => ok[i]);
   } catch {
     photos = [];
@@ -83,8 +86,8 @@ export function mountCarousel(el) {
     <div class="ph-track">
       ${photos.map((p, i) => `
         <figure class="ph-slide ${i === 0 ? 'is-on' : ''}">
-          <img src="${encodeURI(p.src)}" alt="${(p.alt || '').replace(/"/g, '&quot;')}"
-               loading="${i === 0 ? 'eager' : 'lazy'}" decoding="async">
+          <img ${i === 0 ? 'src' : 'data-src'}="${encodeURI(p.src)}"
+               alt="${(p.alt || '').replace(/"/g, '&quot;')}" decoding="async">
           ${captionOf(p) ? `<figcaption>${captionOf(p).replace(/</g, '&lt;')}</figcaption>` : ''}
         </figure>`).join('')}
     </div>
@@ -97,11 +100,25 @@ export function mountCarousel(el) {
   el.querySelectorAll('[data-slide]').forEach(d =>
     d.addEventListener('click', () => { show(el, Number(d.dataset.slide)); restart(el); }));
 
+  hydrate(el, 1);   // preload only the next slide, not all of them
   if (photos.length > 1 && !reduceMotion()) restart(el);
+}
+
+/**
+ * Give a slide its real src. Every slide is stacked in the same box, so
+ * they all count as "in viewport" and loading="lazy" would not defer
+ * anything — the browser would fetch all of them at once. Holding the URL
+ * in data-src until it is needed is what actually defers the download.
+ */
+function hydrate(el, i) {
+  const img = el.querySelectorAll('.ph-slide img')[(i + photos.length) % photos.length];
+  if (img && !img.getAttribute('src') && img.dataset.src) img.src = img.dataset.src;
 }
 
 function show(el, i) {
   slide = (i + photos.length) % photos.length;
+  hydrate(el, slide);
+  hydrate(el, slide + 1);   // ready the next one so the crossfade has something to fade to
   el.querySelectorAll('.ph-slide').forEach((s, n) => s.classList.toggle('is-on', n === slide));
   el.querySelectorAll('.ph-dot').forEach((d, n) => d.classList.toggle('is-on', n === slide));
 }
