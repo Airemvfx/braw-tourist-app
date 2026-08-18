@@ -8,6 +8,7 @@ import { awardXP, evaluateAchievements, evaluateStamps, regionProgress, userStat
 import { generateTrip, tripProgress, tripStopIds, tripTitle, paceLabel } from './planner.js';
 import { renderMap } from './scotland-map.js';
 import { renderHero } from './hero-scene.js';
+import { renderShowcase, startShowcase, stopShowcase } from './showcase.js';
 import { nextQuestion, gameXPFor, recordRun, answerName } from './minigame.js';
 import { compressImage, savePhoto, getPhoto, deletePhoto, listPhotoIds } from './photos.js';
 import {
@@ -38,9 +39,11 @@ function boot() {
 function showAuth() {
   $('#auth-screen').hidden = false;
   $('#app-screen').hidden = true;
+  startShowcase($('#sc-caption'));
 }
 
 function enterApp() {
+  stopShowcase();                  // nothing to animate once past the door
   $('#auth-screen').hidden = true;
   $('#app-screen').hidden = false;
   renderHeader();
@@ -66,6 +69,7 @@ function wireLanguage() {
     syncLangButtons();
     syncAuthSubmit();
     if (user) { renderHeader(); switchView(currentView); }
+    else renderLanding();          // redraw the preview in the new language
   });
 }
 
@@ -946,6 +950,8 @@ function timeAgo(ts) {
 /** Landing artwork + the proof figures beneath it, straight from the dataset. */
 function renderLanding() {
   $('#hero-art').innerHTML = renderHero();
+  $('#sc-map').innerHTML = renderShowcase();
+  startShowcase($('#sc-caption'));
   $('#stat-places').textContent = POIS.length;
   $('#stat-interests').textContent = Object.keys(INTERESTS).length;
   $('#stat-badges').textContent = ACHIEVEMENTS.length;

@@ -72,6 +72,10 @@ const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(
  * @param userPos {lat, lon, accuracy} | null  — live GPS dot
  */
 export function renderMap(stops = [], start = null, userPos = null, opts = {}) {
+  // Namespace the defs so two maps can sit in one document — the hero
+  // showcase and the trip map would otherwise share ids, and every
+  // url(#...) would resolve to whichever parsed first.
+  const ns = opts.idSuffix ? `${opts.idSuffix}-` : '';
   const landRings = [ringPath(MAINLAND), ...ISLANDS.map(ringPath)];
 
   // Route line through start + stops.
@@ -132,22 +136,22 @@ export function renderMap(stops = [], start = null, userPos = null, opts = {}) {
   return `
   <svg class="scotmap" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${esc(t('map.aria'))}">
     <defs>
-      <radialGradient id="seaGlow" cx="30%" cy="20%" r="90%">
+      <radialGradient id="${ns}seaGlow" cx="30%" cy="20%" r="90%">
         <stop offset="0%" stop-color="rgba(62,224,143,0.07)"/>
         <stop offset="55%" stop-color="rgba(96,76,160,0.05)"/>
         <stop offset="100%" stop-color="rgba(0,0,0,0)"/>
       </radialGradient>
-      <linearGradient id="landFill" x1="0" y1="0" x2="1" y2="1">
+      <linearGradient id="${ns}landFill" x1="0" y1="0" x2="1" y2="1">
         <stop offset="0%" stop-color="#1d2f25"/>
         <stop offset="100%" stop-color="#16241d"/>
       </linearGradient>
-      <filter id="markerGlow" x="-80%" y="-80%" width="260%" height="260%">
+      <filter id="${ns}markerGlow" x="-80%" y="-80%" width="260%" height="260%">
         <feGaussianBlur stdDeviation="3.2" result="b"/>
         <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
       </filter>
     </defs>
 
-    <rect width="${W}" height="${H}" fill="url(#seaGlow)"/>
+    <rect width="${W}" height="${H}" fill="url(#${ns}seaGlow)"/>
     <g class="map-graticule">
       ${[...Array(7)].map((_, i) => `<line x1="${(i + 1) * (W / 8)}" y1="0" x2="${(i + 1) * (W / 8)}" y2="${H}"/>`).join('')}
       ${[...Array(9)].map((_, i) => `<line x1="0" y1="${(i + 1) * (H / 10)}" x2="${W}" y2="${(i + 1) * (H / 10)}"/>`).join('')}
@@ -170,6 +174,6 @@ export function renderMap(stops = [], start = null, userPos = null, opts = {}) {
       <path class="map-route" d="${routeD}" fill="none"/>
       <path class="map-route-trim" d="${routeD}" fill="none" pathLength="100"/>` : ''}
     ${startMarker}
-    <g filter="url(#markerGlow)">${markers}</g>
+    <g filter="url(#${ns}markerGlow)">${markers}</g>
   </svg>`;
 }

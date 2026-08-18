@@ -1321,6 +1321,74 @@ small { font-size: 0.78em; }
 .photo-close:active { transform: scale(0.9); }
 
 /* ============================================================
+   Landing showcase — the real map, looping
+   ============================================================ */
+.showcase { margin: 1.6rem 0 0; }
+.sc-kicker {
+  font-family: var(--font-mono); font-size: 0.6rem;
+  letter-spacing: 0.24em; text-transform: uppercase;
+  color: var(--amber); margin-bottom: 0.5rem;
+}
+.sc-stage {
+  position: relative;
+  border: 1px solid var(--border); border-radius: var(--r);
+  background: rgba(6,12,20,0.55);
+  backdrop-filter: blur(3px);
+  overflow: hidden;
+  height: clamp(300px, 38vh, 400px);
+}
+.sc-map { position: absolute; inset: 0; padding: 0.4rem 0.4rem 2.6rem; }
+.sc-map .scotmap { width: 100%; height: 100%; transform: scale(1.22); transform-origin: center 46%; }
+
+/* Pins arrive one after another, so the route reads as a trip being
+   planned rather than a static picture. */
+.sc-map .map-marker {
+  cursor: default;
+  animation: sc-pin 0.7s var(--ease-pop) backwards;
+  transform-box: fill-box; transform-origin: center;
+}
+.sc-map .map-marker:nth-child(1) { animation-delay: 0.0s; }
+.sc-map .map-marker:nth-child(2) { animation-delay: 0.4s; }
+.sc-map .map-marker:nth-child(3) { animation-delay: 0.8s; }
+.sc-map .map-marker:nth-child(4) { animation-delay: 1.2s; }
+.sc-map .map-marker:nth-child(5) { animation-delay: 1.6s; }
+.sc-map .map-marker:nth-child(6) { animation-delay: 2.0s; }
+.sc-map .map-marker:nth-child(7) { animation-delay: 2.4s; }
+.sc-map .map-marker:nth-child(8) { animation-delay: 2.8s; }
+@keyframes sc-pin {
+  0%   { opacity: 0; transform: scale(0.2); }
+  60%  { opacity: 1; transform: scale(1.25); }
+  100% { opacity: 1; transform: scale(1); }
+}
+/* Slower sweep than the trip map — this one is scenery, not a status. */
+.sc-map .map-route-trim { animation-duration: 6s; }
+
+.sc-caption {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  padding: 0.7rem 0.9rem;
+  font-family: var(--font-display); font-weight: 700;
+  font-size: clamp(1.05rem, 4.4vw, 1.35rem);
+  color: var(--text); text-align: center;
+  background: linear-gradient(180deg, rgba(6,12,20,0) 0%, rgba(6,12,20,0.85) 45%);
+  opacity: 0; transform: translateY(8px);
+}
+.sc-caption.is-in {
+  animation: sc-cap 2.6s var(--ease-out) forwards;
+}
+/* In, hold, out — the JS swaps the text between cycles. */
+@keyframes sc-cap {
+  0%          { opacity: 0; transform: translateY(10px); }
+  12%, 78%    { opacity: 1; transform: none; }
+  100%        { opacity: 0; transform: translateY(-8px); }
+}
+
+@media (max-width: 560px) {
+  /* The tiles are hidden this narrow, so the preview leads instead. */
+  .showcase { margin-top: 1.2rem; }
+  .sc-stage { height: clamp(290px, 36vh, 350px); }
+}
+
+/* ============================================================
    Interaction & motion
    Press feedback applies everywhere; lift-on-hover is gated behind
    `hover: hover` because on touch screens :hover latches after a tap
@@ -1465,6 +1533,7 @@ small { font-size: 0.78em; }
   /* The four tiles wrap into unreadable slivers this narrow, and the
      footnote repeats the reassurance already on the sign-in card. */
   .brand-feats, .brand-divider, .brand-foot { display: none; }
+  .showcase { display: block; }   /* the preview stays — it is the pitch */
   /* Nothing sits over the lower band here, so let the glen show through. */
   .hero-scrim {
     background:

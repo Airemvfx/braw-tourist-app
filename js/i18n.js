@@ -46,6 +46,14 @@ const EN = {
   'auth.feat.leaderboard.t': 'Leaderboard',
   'auth.feat.leaderboard.b': 'Climb past other explorers',
 
+  // ---- landing showcase ----
+  'showcase.kicker': 'A live preview',
+  'showcase.cap1': 'Plan your roadtrip',
+  'showcase.cap2': 'Gain levels',
+  'showcase.cap3': 'Play games',
+  'showcase.cap4': 'Earn badges',
+  'showcase.aria': 'Animated preview of a Scottish roadtrip on the BRAW map',
+
   'auth.stat.places': 'locations',
   'auth.stat.interests': 'interests',
   'auth.stat.badges': 'achievements',
@@ -357,6 +365,14 @@ const PL = {
   'auth.feat.xp.b': 'Zdobywaj poziomy, zwiedzając',
   'auth.feat.leaderboard.t': 'Ranking',
   'auth.feat.leaderboard.b': 'Wyprzedzaj innych odkrywców',
+
+  // ---- landing showcase ----
+  'showcase.kicker': 'Podgląd na żywo',
+  'showcase.cap1': 'Zaplanuj swoją podróż',
+  'showcase.cap2': 'Zdobywaj poziomy',
+  'showcase.cap3': 'Graj w gry',
+  'showcase.cap4': 'Zbieraj odznaki',
+  'showcase.aria': 'Animowany podgląd szkockiej wyprawy na mapie BRAW',
 
   'auth.stat.places': 'miejsc',
   'auth.stat.interests': 'zainteresowań',
