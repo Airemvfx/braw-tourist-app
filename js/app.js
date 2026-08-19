@@ -10,7 +10,10 @@ import {
 import { store } from './store.js';
 import { initTheme, setMode, getMode, onThemeChange } from './theme.js';
 import { awardXP, evaluateAchievements, evaluateStamps, regionProgress, userStats, toastInfo, burstConfetti, setQuiet, activityText } from './gamification.js';
-import { generateTrip, tripProgress, tripStopIds, tripTitle, paceLabel, distKm } from './planner.js';
+import {
+  generateTrip, tripProgress, tripStopIds, tripTitle, paceLabel, distKm,
+  wildcardsFor, addStops,
+} from './planner.js';
 import { renderMap, mapKeyHTML } from './scotland-map.js';
 import { renderHero } from './hero-scene.js';
 import { renderShowcase, startShowcase, stopShowcase } from './showcase.js';
@@ -309,6 +312,63 @@ function interestPills(keys) {
     .join('');
 }
 
+/**
+ * A themed quest gets exactly what it asked for. Once in a while it also
+ * gets asked, nicely, whether it would like a couple of things it did
+ * not — because "only whisky" is a fine answer, and so is "well, maybe
+ * Glencoe too". Chosen at generation time and stored on the draft, so
+ * re-rendering cannot re-roll the offer or swap the suggestions.
+ */
+function wildcardHTML(trip) {
+  if (!trip.offerWildcards) return '';
+  trip.wildcards = trip.wildcards || wildcardsFor(trip).map(p => p.id);
+  const picks = trip.wildcards.map(id => POI_BY_ID[id]).filter(Boolean);
+  if (!picks.length) return '';
+
+  const names = (trip.interests || []).filter(k => INTERESTS[k]).map(k => interestLabel(k));
+  const theme = names.length > 1
+    ? t('planner.themeJoin', { a: names[0], b: names[1] })
+    : (names[0] || t('planner.themeDefault'));
+  const one = picks.length === 1;
+
+  return `
+    <aside class="wildcard" id="wildcard">
+      <div class="wc-kicker">✨ ${t('plan.wild.kicker')}</div>
+      <p class="wc-body">${esc(t(one ? 'plan.wild.bodyOne' : 'plan.wild.body', { theme: theme.toLowerCase() }))}</p>
+      <ul class="wc-list">
+        ${picks.map(p => `
+          <li>
+            <span class="wc-icon">${p.icon}</span>
+            <span class="wc-text">
+              <b>${esc(poiName(p))}</b>
+              <i>${esc(t('plan.wild.detour', {
+                region: regionName(p.region), time: poiTime(p.time), xp: p.xp,
+              }))}</i>
+            </span>
+          </li>`).join('')}
+      </ul>
+      <div class="wc-actions">
+        <button class="btn btn-primary btn-sm" id="wc-yes">${t(one ? 'plan.wild.addOne' : 'plan.wild.add')}</button>
+        <button class="btn btn-ghost btn-sm" id="wc-no">${t('plan.wild.no')}</button>
+      </div>
+    </aside>`;
+}
+
+function wireWildcards() {
+  $('#wc-yes')?.addEventListener('click', () => {
+    addStops(draftTrip, draftTrip.wildcards);
+    draftTrip.wildcards = null;
+    toastInfo(t('plan.wild.added'), '🎁');
+    renderDraft();
+  });
+  $('#wc-no')?.addEventListener('click', () => {
+    draftTrip.offerWildcards = false;
+    draftTrip.wildcards = null;
+    toastInfo(t('plan.wild.kept'), '🥃');
+    renderDraft();
+  });
+}
+
 function renderDraft() {
   const trip = draftTrip;
   const box = $('#plan-result');
@@ -322,6 +382,7 @@ function renderDraft() {
           <div class="kicker">${t('trip.kicker.draft')}</div>
           <h2 class="trip-title">${esc(tripTitle(trip))}</h2>
           <div class="pill-row">${interestPills(trip.interests)}
+            ${trip.interests.length ? `<span class="pill pill-sage">${t('plan.themeOnly', { n: stops.length })}</span>` : ''}
             <span class="pill pill-dim">${t('trip.distance', { dist: formatDistance(trip) })}</span>
             <span class="pill pill-dim">${t('trip.pace', { pace: paceLabel(trip) })}</span>
             <span class="pill pill-gold">${t('trip.xpOffer', { xp: trip.xpOnOffer + XP_EVENTS.CREATE_TRIP })}</span>
@@ -335,11 +396,13 @@ function renderDraft() {
       <div class="poi-panel" hidden></div>
       <div class="map-stage">${renderMap(stops, trip.start)}</div>
       ${mapKeyHTML()}
+      ${wildcardHTML(trip)}
       <div class="stop-list">${stopListHTML(trip, false)}</div>
     </div>`;
 
   $('#reshuffle-btn').addEventListener('click', () => { draftTrip = generateTrip(trip.prompt); renderDraft(); });
   $('#save-trip-btn').addEventListener('click', saveDraft);
+  wireWildcards();
   wireMapMarkers(box, trip, false);
   wireStopList(box, trip);
 }

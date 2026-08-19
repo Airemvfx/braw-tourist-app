@@ -117,6 +117,17 @@ const EN = {
   'plan.think.polish': 'Polishing your quest…',
 
   // ---- trip sheet ----
+  // ---- the occasional nudge outside a themed request ----
+  'plan.wild.kicker': 'A wee suggestion',
+  'plan.wild.body': 'All {theme}, start to finish — no argument here. But you would drive right past these two, and it seems a shame.',
+  'plan.wild.bodyOne': 'All {theme}, start to finish — no argument here. But you would drive right past this one, and it seems a shame.',
+  'plan.wild.add': 'Go on then, add them',
+  'plan.wild.addOne': 'Go on then, add it',
+  'plan.wild.no': 'No, keep it pure',
+  'plan.wild.detour': '{region} · {time} · ✦ {xp} XP',
+  'plan.wild.added': 'Added to your route. Good instincts.',
+  'plan.wild.kept': 'Purist. Respect.',
+  'plan.themeOnly': '{n} stops, all on theme',
   'trip.kicker.draft': 'YOUR QUEST AWAITS',
   'trip.kicker.active': 'ACTIVE QUEST',
   'trip.kicker.complete': '🏁 QUEST COMPLETE',
@@ -564,6 +575,17 @@ const PL = {
   'plan.think.polish': 'Dopracowuję Twoją wyprawę…',
 
   // ---- trip sheet ----
+  // ---- sporadyczna podpowiedź poza tematem ----
+  'plan.wild.kicker': 'Mała podpowiedź',
+  'plan.wild.body': 'Od początku do końca {theme} — nic dodać. Ale przejedziesz tuż obok tych dwóch miejsc, więc trochę szkoda.',
+  'plan.wild.bodyOne': 'Od początku do końca {theme} — nic dodać. Ale przejedziesz tuż obok tego miejsca, więc trochę szkoda.',
+  'plan.wild.add': 'No dobrze, dodaj je',
+  'plan.wild.addOne': 'No dobrze, dodaj je',
+  'plan.wild.no': 'Nie, zostawmy czysty motyw',
+  'plan.wild.detour': '{region} · {time} · ✦ {xp} PD',
+  'plan.wild.added': 'Dodane do trasy. Dobry instynkt.',
+  'plan.wild.kept': 'Purysta. Szacunek.',
+  'plan.themeOnly': '{n} przystanków, wszystkie w temacie',
   'trip.kicker.draft': 'TWOJA WYPRAWA CZEKA',
   'trip.kicker.active': 'AKTYWNA WYPRAWA',
   'trip.kicker.complete': '🏁 WYPRAWA UKOŃCZONA',

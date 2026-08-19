@@ -7,7 +7,7 @@
 // Swappable later for a real LLM + routing API.
 // ============================================================
 
-import { POIS, INTERESTS, START_CITIES, REGION_HINTS } from './data.js';
+import { POIS, POI_BY_ID, INTERESTS, START_CITIES, REGION_HINTS } from './data.js';
 import { t as translate } from './i18n.js';
 
 const KM_PER_DEG = 111;
@@ -127,55 +127,127 @@ export function paceLabel(trip) {
   return translate(`pace.${key}`);
 }
 
+/**
+ * Locations that actually answer the request.
+ *
+ * An interest the user names is a filter, not a hint. Ask for whisky and
+ * you get distilleries — not a greatest-hits tour of Scotland with one
+ * distillery in it, which is what ranking-with-a-bonus used to produce.
+ * Matching is on each interest's `core` tags; the broad `tags` sets
+ * overlap too much to filter on (see the note in data.js).
+ */
+export function matchingPois(interestKeys) {
+  const keys = (interestKeys || []).filter(k => INTERESTS[k]);
+  if (!keys.length) return POIS;                 // no theme asked for: the whole map
+  const core = new Set(keys.flatMap(k => INTERESTS[k].core || INTERESTS[k].tags));
+  return POIS.filter(p => p.tags.some(tag => core.has(tag)));
+}
+
+/**
+ * Places worth a detour that are NOT what was asked for — the two the
+ * app offers up, once in a while, as a gentle "there is more out here".
+ * Ranked by how little they drag you off the route you already have.
+ */
+export function wildcardsFor(trip, count = 2) {
+  const keys = (trip.interests || []).filter(k => INTERESTS[k]);
+  if (!keys.length) return [];
+  const core = new Set(keys.flatMap(k => INTERESTS[k].core || INTERESTS[k].tags));
+  const onRoute = tripStopIds(trip).map(id => POI_BY_ID[id]).filter(Boolean);
+  if (!onRoute.length) return [];
+
+  const outsiders = POIS.filter(p =>
+    !p.tags.some(tag => core.has(tag)) && !onRoute.some(s => s.id === p.id));
+
+  return outsiders
+    .map(p => {
+      const detour = Math.min(...onRoute.map(s => distKm(p, s)));
+      return { p, score: p.pop * 3 - detour / 6 };
+    })
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 6)                                  // shortlist, then vary
+    .sort(() => Math.random() - 0.5)
+    .slice(0, count)
+    .map(x => x.p);
+}
+
+/** Days, distance and XP for a set of stops in route order. */
+function summarise(trip, route, dayCount) {
+  const perDay = Math.ceil(route.length / Math.max(1, dayCount));
+  const days = [];
+  for (let d = 0; d < dayCount; d++) {
+    const stops = route.slice(d * perDay, (d + 1) * perDay).map(p => p.id);
+    if (stops.length) days.push({ day: days.length + 1, stops });
+  }
+  let km = 0, cursor = trip.start;
+  for (const p of route) { km += distKm(cursor, p); cursor = p; }
+  km = Math.round(km * 1.3);                      // road windiness
+  trip.days = days;
+  trip.distanceKm = km;
+  trip.distanceMi = Math.round(km * 0.621);
+  trip.xpOnOffer = route.reduce((s, p) => s + p.xp, 0);
+  return trip;
+}
+
+// How often a themed quest is offered a couple of stops from outside it.
+// Occasionally — the point is a nudge, not a running commentary.
+const WILDCARD_CHANCE = 0.35;
+
 export function generateTrip(promptText) {
   const req = parsePrompt(promptText);
-  const stopCount = Math.min(req.days * req.pace, POIS.length);
+  const pool = matchingPois(req.interests);
+  const themed = req.interests.length > 0;
+  const stopCount = Math.min(req.days * req.pace, pool.length);
 
-  const ranked = POIS
+  const ranked = pool
     .map(p => ({ p, score: scorePoi(p, req) }))
     .sort((a, b) => b.score - a.score);
 
-  // diversity guard: max 40% of stops from one single region
-  const cap = Math.max(2, Math.ceil(stopCount * 0.4));
+  // Spread across regions where there is room to. On a themed request the
+  // pool can be smaller than the trip, so the cap runs as a preference:
+  // a second pass fills any remaining slots rather than returning fewer
+  // stops than the user actually asked for.
+  const cap = Math.max(2, Math.ceil(stopCount * (themed ? 0.6 : 0.4)));
   const perRegion = {};
   const chosen = [];
-  for (const { p } of ranked) {
-    if (chosen.length >= stopCount) break;
-    perRegion[p.region] = perRegion[p.region] || 0;
-    if (perRegion[p.region] >= cap) continue;
-    perRegion[p.region]++;
-    chosen.push(p);
+  for (const pass of [1, 2]) {
+    for (const { p } of ranked) {
+      if (chosen.length >= stopCount) break;
+      if (chosen.includes(p)) continue;
+      if (pass === 1) {
+        perRegion[p.region] = perRegion[p.region] || 0;
+        if (perRegion[p.region] >= cap) continue;
+        perRegion[p.region]++;
+      }
+      chosen.push(p);
+    }
   }
 
   const route = nearestNeighbourRoute(req.start, chosen);
-
-  // chunk route into days
-  const perDay = Math.ceil(route.length / req.days);
-  const days = [];
-  for (let d = 0; d < req.days; d++) {
-    const stops = route.slice(d * perDay, (d + 1) * perDay).map(p => p.id);
-    if (stops.length) days.push({ day: d + 1, stops });
-  }
-
-  // total driving estimate (~1.3 road windiness factor)
-  let km = 0, cursor = req.start;
-  for (const p of route) { km += distKm(cursor, p); cursor = p; }
-  km = Math.round(km * 1.3);
-
-  return {
+  const trip = {
     id: 'trip_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
     prompt: promptText,
     interests: req.interests,
     paceKey: req.paceKey,
     start: req.start,
-    days,
-    distanceKm: km,
-    distanceMi: Math.round(km * 0.621),
-    xpOnOffer: route.reduce((s, p) => s + p.xp, 0),
     createdAt: Date.now(),
-    visited: {},        // { poiId: timestamp }
+    visited: {},
     completedAt: null,
+    // Decided once, here, so re-rendering the draft cannot re-roll it.
+    offerWildcards: themed && route.length >= 2 && Math.random() < WILDCARD_CHANCE,
   };
+  return summarise(trip, route, req.days);
+}
+
+/**
+ * Fold extra stops into an existing draft: re-route, re-chunk, re-cost.
+ * Used when someone accepts the suggested detours.
+ */
+export function addStops(trip, poiIds) {
+  const ids = [...tripStopIds(trip), ...poiIds];
+  const pois = ids.map(id => POI_BY_ID[id]).filter(Boolean);
+  const route = nearestNeighbourRoute(trip.start, pois);
+  trip.offerWildcards = false;
+  return summarise(trip, route, trip.days.length);
 }
 
 export function tripStopIds(trip) {

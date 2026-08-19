@@ -62,6 +62,93 @@ export function mountTerrain() {
   document.body.appendChild(host);
 }
 
+// ---------------------------------------------------------------
+// Route geometry
+//
+// A ruled line between two pins says "data". A road says "journey".
+// The route is smoothed through its stops with a Catmull-Rom spline,
+// then displaced by fractal value noise sampled at the point's own
+// position on the map — so the wander is a property of the ground it
+// crosses, not of the route. Two consequences worth having: the same
+// route always draws the same line, and adding a stop only changes the
+// stretch near it instead of reshuffling the whole thing.
+// ---------------------------------------------------------------
+
+// Tuned by rendering the same route across a range and comparing:
+// less wander reads as a slightly-bent ruler, more starts to look like
+// noise rather than a road, and a tighter noise scale gets jittery.
+const NOISE_SCALE = 0.014;   // map px -> noise space; ~70px per lobe
+const WANDER = 0.20;         // displacement as a fraction of leg length
+const WANDER_MAX = 24;       // ...but never more than this, in map px
+const SAMPLES = 16;          // samples per leg
+
+function hash2(x, y) {
+  const s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453123;
+  return s - Math.floor(s);
+}
+
+function vnoise2(x, y) {
+  const ix = Math.floor(x), iy = Math.floor(y);
+  const fx = x - ix, fy = y - iy;
+  const ux = fx * fx * (3 - 2 * fx), uy = fy * fy * (3 - 2 * fy);
+  const a = hash2(ix, iy), b = hash2(ix + 1, iy);
+  const c = hash2(ix, iy + 1), d = hash2(ix + 1, iy + 1);
+  return a * (1 - ux) * (1 - uy) + b * ux * (1 - uy)
+       + c * (1 - ux) * uy + d * ux * uy;
+}
+
+/** Four octaves of value noise, centred on zero. */
+function fbm2(x, y) {
+  let v = 0, amp = 0.5, fr = 1;
+  for (let o = 0; o < 4; o++) {
+    v += (vnoise2(x * fr, y * fr) - 0.5) * amp;
+    fr *= 2.03; amp *= 0.5;
+  }
+  return v * 2.2;
+}
+
+function catmull(p0, p1, p2, p3, t) {
+  const t2 = t * t, t3 = t2 * t;
+  const c = (a, b, cc, d) =>
+    0.5 * (2 * b + (-a + cc) * t + (2 * a - 5 * b + 4 * cc - d) * t2
+           + (-a + 3 * b - 3 * cc + d) * t3);
+  return [c(p0[0], p1[0], p2[0], p3[0]), c(p0[1], p1[1], p2[1], p3[1])];
+}
+
+/**
+ * Build the route's `d`. Displacement tapers to zero at every stop, so
+ * however much the line wanders in between it still meets each pin
+ * exactly where the pin is.
+ */
+export function routePath(pts) {
+  if (pts.length < 2) return '';
+  // Phantom end points so the spline has a tangent at the real ends.
+  const p = [pts[0], ...pts, pts[pts.length - 1]];
+  const out = [];
+
+  for (let i = 1; i < p.length - 2; i++) {
+    const legLen = Math.hypot(p[i + 1][0] - p[i][0], p[i + 1][1] - p[i][1]);
+    const amp = Math.min(WANDER_MAX, legLen * WANDER);
+    const last = i === p.length - 3;
+
+    for (let s = 0; s <= SAMPLES; s++) {
+      if (s === SAMPLES && !last) break;         // next leg re-emits this point
+      const t = s / SAMPLES;
+      const [x, y] = catmull(p[i - 1], p[i], p[i + 1], p[i + 2], t);
+      // tangent by a short finite difference, for the perpendicular
+      const e = 0.012;
+      const [ax, ay] = catmull(p[i - 1], p[i], p[i + 1], p[i + 2], Math.max(0, t - e));
+      const [bx, by] = catmull(p[i - 1], p[i], p[i + 1], p[i + 2], Math.min(1, t + e));
+      const tx = bx - ax, ty = by - ay;
+      const tl = Math.hypot(tx, ty) || 1;
+      const taper = Math.pow(Math.sin(Math.PI * t), 0.7);
+      const d = fbm2(x * NOISE_SCALE, y * NOISE_SCALE) * amp * taper;
+      out.push([x - (ty / tl) * d, y + (tx / tl) * d]);
+    }
+  }
+  return out.map((q, i) => `${i === 0 ? 'M' : 'L'}${q[0].toFixed(1)},${q[1].toFixed(1)}`).join('');
+}
+
 const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 
 /**
@@ -102,7 +189,7 @@ export function renderMap(stops = [], start = null, userPos = null, opts = {}) {
   const routePts = [];
   if (start) routePts.push(project(start.lon, start.lat));
   for (const s of stops) routePts.push(project(s.poi.lon, s.poi.lat));
-  const routeD = routePts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
+  const routeD = routePath(routePts);
 
   const markers = stops
     .map(s => {
