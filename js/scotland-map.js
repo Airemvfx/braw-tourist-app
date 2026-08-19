@@ -1,10 +1,21 @@
 // ============================================================
-// Stylised SVG map of Scotland (no external map libraries).
-// Coastline is a deliberately low-poly artistic rendition;
-// markers are projected from real lat/lon coordinates.
+// SVG map of Scotland (no external map libraries).
+//
+// The terrain is real: coastline, land cover, elevation and rivers
+// baked into paths by tools/build_terrain.py and imported from
+// map-terrain.js. Markers are projected from real lat/lon at runtime
+// with the same projection the terrain was baked in, so the two line up.
+//
+// The terrain lives in ONE hidden sprite that every map instance
+// references with <use>. Three maps can be alive at once (showcase,
+// trip, builder) and the builder redraws its map on every tap — with
+// the paths inlined that would mean re-parsing ~170KB of geometry each
+// time. CSS custom properties do reach into <use> shadow content, so
+// the sprite still re-themes with the rest of the app.
 // ============================================================
 
 import { t, poiName, regionName, cityName } from './i18n.js';
+import { TERRAIN } from './map-terrain.js';
 
 const BOUNDS = { lonMin: -7.4, lonMax: -1.4, latMin: 54.5, latMax: 58.85 };
 const W = 560;
@@ -16,54 +27,63 @@ export function project(lon, lat) {
   return [x, y];
 }
 
-// Mainland coastline, clockwise from Berwick (lon, lat).
-const MAINLAND = [
-  [-2.03, 55.81], [-2.35, 55.62], [-2.85, 55.30], [-3.05, 54.99], // border to Gretna
-  [-3.58, 54.99], [-3.95, 54.77], [-4.40, 54.69], [-4.86, 54.64], // Solway / Galloway
-  [-5.00, 54.77], [-5.08, 55.00], [-4.88, 55.05], [-4.65, 55.32], // Rhins & Loch Ryan
-  [-4.62, 55.45], [-4.85, 55.65], [-4.92, 55.93],                 // Ayrshire coast
-  [-4.45, 55.93], [-4.88, 56.06],                                 // Firth of Clyde notch
-  [-5.22, 55.85], [-5.35, 55.85], [-5.55, 55.30], [-5.78, 55.42], // Kintyre down & tip
-  [-5.65, 55.95], [-5.45, 56.05], [-5.58, 56.28], [-5.42, 56.45], // Knapdale to Oban
-  [-5.75, 56.55], [-6.22, 56.72],                                 // Ardnamurchan Point
-  [-5.88, 56.90], [-5.86, 57.05], [-5.55, 57.12], [-5.70, 57.26], // Mallaig & lochs
-  [-5.82, 57.36], [-5.68, 57.55], [-5.80, 57.65], [-5.62, 57.74], // Torridon / Gairloch
-  [-5.55, 57.86], [-5.18, 57.90], [-5.36, 58.06], [-5.24, 58.26], // Ullapool / Assynt
-  [-5.10, 58.45], [-5.00, 58.63],                                 // Cape Wrath
-  [-4.70, 58.58], [-4.40, 58.55], [-3.85, 58.60], [-3.35, 58.63], // north coast
-  [-3.05, 58.65], [-3.08, 58.40], [-3.40, 58.25], [-3.80, 58.05], // Duncansby to Helmsdale
-  [-3.90, 57.95], [-4.08, 57.86], [-3.92, 57.76], [-4.25, 57.58], // firths wiggle
-  [-4.00, 57.68], [-3.60, 57.66], [-3.30, 57.72], [-2.75, 57.70], // Moray coast
-  [-2.10, 57.70], [-1.78, 57.50], [-1.95, 57.30], [-2.07, 57.15], // Fraserburgh to Aberdeen
-  [-2.20, 56.95], [-2.45, 56.70], [-2.75, 56.55], [-2.95, 56.46], // down to Tay
-  [-3.10, 56.42], [-2.80, 56.34], [-2.60, 56.28],                 // Fife Ness
-  [-2.85, 56.20], [-3.20, 56.07], [-3.55, 56.05],                 // Forth north shore
-  [-3.40, 55.99], [-3.10, 55.97], [-2.52, 56.00], [-2.15, 55.92], // Forth south shore
-];
+export const TERRAIN_ID = 'braw-terrain';
 
-const ISLANDS = [
-  // Skye
-  [[-6.30, 57.70], [-6.65, 57.52], [-6.78, 57.43], [-6.45, 57.33], [-6.32, 57.16], [-5.95, 57.02], [-5.78, 57.25], [-6.10, 57.35], [-6.16, 57.55]],
-  // Mull
-  [[-6.35, 56.55], [-6.00, 56.64], [-5.76, 56.50], [-5.90, 56.34], [-6.30, 56.30]],
-  // Arran
-  [[-5.30, 55.72], [-5.14, 55.64], [-5.10, 55.45], [-5.30, 55.43], [-5.40, 55.58]],
-  // Islay (decorative)
-  [[-6.45, 55.88], [-6.10, 55.92], [-6.04, 55.64], [-6.40, 55.60]],
-  // Jura (decorative)
-  [[-6.00, 56.00], [-5.74, 55.84], [-5.90, 55.70], [-6.06, 55.88]],
-];
-
-function ringPath(points) {
-  return points
-    .map(([lon, lat], i) => {
-      const [x, y] = project(lon, lat);
-      return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`;
-    })
-    .join(' ') + ' Z';
+/**
+ * Put the terrain sprite in the document once. Colours are presentation
+ * attributes pointing at custom properties rather than classes, because
+ * document CSS selectors do not match inside a <use> shadow tree — but
+ * inherited custom properties do reach it.
+ */
+export function mountTerrain() {
+  if (document.getElementById(TERRAIN_ID)) return;
+  const layer = (d, attrs) => d ? `<path d="${d}" ${attrs}/>` : '';
+  const host = document.createElement('div');
+  host.setAttribute('aria-hidden', 'true');
+  host.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden';
+  host.innerHTML = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="0" height="0"><defs>
+      <g id="${TERRAIN_ID}">
+        ${layer(TERRAIN.land, 'fill="var(--mt-neighbour)" stroke="var(--mt-neighbour-line)" stroke-width="0.7"')}
+        ${layer(TERRAIN.scotland, 'fill="var(--mt-land)" stroke="var(--mt-coast)" stroke-width="1.1" stroke-linejoin="round"')}
+        ${layer(TERRAIN.relief.e200, 'fill="var(--mt-e200)"')}
+        ${layer(TERRAIN.relief.e450, 'fill="var(--mt-e450)"')}
+        ${layer(TERRAIN.relief.e750, 'fill="var(--mt-e750)"')}
+        ${layer(TERRAIN.cover.forest, 'fill="var(--mt-forest)"')}
+        ${layer(TERRAIN.cover.farm, 'fill="var(--mt-farm)"')}
+        ${layer(TERRAIN.cover.built, 'fill="var(--mt-built)"')}
+        ${layer(TERRAIN.cover.water, 'fill="var(--mt-water)"')}
+        ${layer(TERRAIN.rivers, 'fill="none" stroke="var(--mt-river)" stroke-width="0.9" stroke-linecap="round" stroke-linejoin="round"')}
+        ${layer(TERRAIN.relief.e200, 'fill="none" stroke="var(--mt-contour)" stroke-width="0.45"')}
+        ${layer(TERRAIN.relief.e450, 'fill="none" stroke="var(--mt-contour)" stroke-width="0.45"')}
+        ${layer(TERRAIN.relief.e750, 'fill="none" stroke="var(--mt-contour-hi)" stroke-width="0.5"')}
+      </g>
+    </defs></svg>`;
+  document.body.appendChild(host);
 }
 
 const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+
+/**
+ * Key for the terrain colours. Without it the new greens and ochres are
+ * decoration; with it they are information. Swatches are the same custom
+ * properties the map itself paints with, so the two can never drift.
+ */
+export function mapKeyHTML() {
+  const keys = [
+    ['--mt-land', 'map.key.moor'],
+    ['--mt-forest', 'map.key.forest'],
+    ['--mt-farm', 'map.key.farm'],
+    ['--mt-e750', 'map.key.high'],
+    ['--mt-water', 'map.key.water'],
+    ['--mt-built', 'map.key.town'],
+  ];
+  return `
+    <ul class="map-key" aria-label="${esc(t('map.key.aria'))}">
+      ${keys.map(([token, key]) => `
+        <li><i style="background:var(${token})"></i>${esc(t(key))}</li>`).join('')}
+    </ul>`;
+}
 
 /**
  * Render the map as an SVG string.
@@ -76,7 +96,7 @@ export function renderMap(stops = [], start = null, userPos = null, opts = {}) {
   // showcase and the trip map would otherwise share ids, and every
   // url(#...) would resolve to whichever parsed first.
   const ns = opts.idSuffix ? `${opts.idSuffix}-` : '';
-  const landRings = [ringPath(MAINLAND), ...ISLANDS.map(ringPath)];
+  mountTerrain();          // idempotent; every caller is safe without ordering
 
   // Route line through start + stops.
   const routePts = [];
@@ -175,9 +195,7 @@ export function renderMap(stops = [], start = null, userPos = null, opts = {}) {
     <text class="sea-label" x="60" y="200" transform="rotate(-12 60 200)">${t('map.atlantic')}</text>
     <text class="sea-label" x="${W - 150}" y="330" transform="rotate(8 ${W - 150} 330)">${t('map.northSea')}</text>
 
-    <g class="map-land">
-      ${landRings.map(d => `<path d="${d}"/>`).join('')}
-    </g>
+    <use href="#${TERRAIN_ID}"/>
 
     <g class="map-compass" transform="translate(${W - 52},58)">
       <circle r="26" class="compass-ring"/>

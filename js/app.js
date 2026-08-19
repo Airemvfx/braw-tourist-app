@@ -11,7 +11,7 @@ import { store } from './store.js';
 import { initTheme, setMode, getMode, onThemeChange } from './theme.js';
 import { awardXP, evaluateAchievements, evaluateStamps, regionProgress, userStats, toastInfo, burstConfetti, setQuiet, activityText } from './gamification.js';
 import { generateTrip, tripProgress, tripStopIds, tripTitle, paceLabel, distKm } from './planner.js';
-import { renderMap } from './scotland-map.js';
+import { renderMap, mapKeyHTML } from './scotland-map.js';
 import { renderHero } from './hero-scene.js';
 import { renderShowcase, startShowcase, stopShowcase } from './showcase.js';
 import { loadPhotos, hasPhotos, mountBackdrop, mountCarousel, stopCarousel } from './photos-hero.js';
@@ -334,6 +334,7 @@ function renderDraft() {
       </div>
       <div class="poi-panel" hidden></div>
       <div class="map-stage">${renderMap(stops, trip.start)}</div>
+      ${mapKeyHTML()}
       <div class="stop-list">${stopListHTML(trip, false)}</div>
     </div>`;
 
@@ -523,6 +524,7 @@ function renderBuildMap() {
   $('#bd-map').innerHTML = renderMap(stops, bdStart(), null, {
     idSuffix: 'bd', candidates: bdCandidates(),
   });
+  $('#bd-key').innerHTML = mapKeyHTML();
   scope.querySelectorAll('.map-marker').forEach(m => onActivate(m, () => openBuilderPoi(m.dataset.poi)));
   scope.querySelectorAll('.map-cand').forEach(m => onActivate(m, () => openBuilderPoi(m.dataset.cand)));
   // keep the open location highlighted across redraws
@@ -1009,6 +1011,7 @@ function renderTripDetail() {
     <div class="poi-panel" id="poi-panel" hidden></div>
 
     <div class="map-stage">${renderMap(stops, trip.start)}</div>
+    ${mapKeyHTML()}
 
     <div class="stop-list">${stopListHTML(trip, true)}</div>`;
 

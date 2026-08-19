@@ -273,6 +273,18 @@ const EN = {
   'planner.themeJoin': '{a} & {b}',
   'planner.demoPrompt': '5 days of castles, whisky and misty lochs starting from Edinburgh',
 
+  // Attribution is not optional: ESA WorldCover is CC BY 4.0.
+  'foot.data': 'Terrain: ESA WorldCover 2021 (CC BY 4.0) · elevation from SRTM · coastline from Natural Earth',
+
+  // ---- map key ----
+  'map.key.moor': 'Moor & grazing',
+  'map.key.forest': 'Forest',
+  'map.key.farm': 'Farmland',
+  'map.key.water': 'Loch',
+  'map.key.town': 'Town',
+  'map.key.high': 'High ground',
+  'map.key.aria': 'What the colours on the map mean',
+
   // ---- journey builder ----
   'nav.build': 'Build',
   'build.title': 'Craft your own <em>journey</em>',
@@ -707,6 +719,17 @@ const PL = {
   'planner.themeJoin': '{a} i {b}',
   'planner.customTitle': 'Moja wyprawa na {days} dni: {theme}',
   'planner.demoPrompt': '5 dni zamków, whisky i mglistych jezior ze startem w Edynburgu',
+
+  'foot.data': 'Teren: ESA WorldCover 2021 (CC BY 4.0) · wysokości ze SRTM · linia brzegowa z Natural Earth',
+
+  // ---- legenda mapy ----
+  'map.key.moor': 'Wrzosowiska i pastwiska',
+  'map.key.forest': 'Las',
+  'map.key.farm': 'Pola uprawne',
+  'map.key.water': 'Jezioro',
+  'map.key.town': 'Miasto',
+  'map.key.high': 'Tereny wysokie',
+  'map.key.aria': 'Co oznaczają kolory na mapie',
 
   // ---- kreator wyprawy ----
   'nav.build': 'Kreator',
