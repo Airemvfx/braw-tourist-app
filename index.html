@@ -151,6 +151,7 @@
         <button class="nav-btn" data-view="badges" data-i18n="nav.badges">Achievements</button>
         <button class="nav-btn" data-view="play" data-i18n="nav.play">Play</button>
         <button class="nav-btn" data-view="leaderboard" data-i18n="nav.leaderboard">Leaderboard</button>
+        <button class="nav-btn" data-view="safety" data-i18n="safety.nav">Safety</button>
         <button class="nav-btn" data-view="profile" data-i18n="nav.profile">Profile</button>
       </nav>
       <div class="hdr-right">
@@ -312,6 +313,15 @@
         <div id="game-panel"></div>
       </section>
 
+      <!-- Safety -->
+      <section id="view-safety" hidden>
+        <div class="view-head">
+          <h1 class="view-title" data-i18n="safety.title">Before you go</h1>
+          <p class="view-sub" data-i18n="safety.sub">Kept in the app so it reads with no signal.</p>
+        </div>
+        <div id="safety-body"></div>
+      </section>
+
       <!-- Profile -->
       <section id="view-profile" hidden>
         <div id="profile-card"></div>
@@ -353,6 +363,10 @@
         </div>
       </div>
       <div class="foot-text" data-i18n-html="foot.app">BRAW · Scotland, UK · GPS &amp; geofencing · mair lands coming soon · progress stored locally</div>
+      <div class="foot-links">
+        <a href="PRIVACY.md" data-i18n="foot.privacy">Privacy</a>
+        <a href="SAFETY.md" data-i18n="foot.safety">Safety</a>
+      </div>
       <div class="foot-data" data-i18n="foot.data">Terrain: ESA WorldCover 2021 (CC BY 4.0) · elevation from SRTM · coastline from Natural Earth</div>
     </footer>
   </div>

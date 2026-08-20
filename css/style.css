@@ -2524,3 +2524,30 @@ small { font-size: 0.78em; }
 .pd-lore b { font-size: 0.87rem; font-weight: 600; }
 .pd-lore p { font-size: 0.8rem; color: var(--text-dim); line-height: 1.55; }
 .pd-lore i { font-style: normal; font-size: 0.68rem; color: var(--text-faint); }
+
+/* ============================================================
+   SAFETY
+   The emergency cards are visually louder on purpose.
+   ============================================================ */
+#safety-body { display: grid; gap: 0.8rem; }
+@media (min-width: 760px) {
+  #safety-body { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); align-items: start; }
+}
+.safety-card { padding: 1rem 1.1rem; display: grid; gap: 0.4rem; }
+.safety-card h3 {
+  display: flex; align-items: center; gap: 0.5rem;
+  font-family: var(--font-display); font-size: 1.1rem;
+}
+.safety-card p { font-size: 0.86rem; color: var(--text-dim); line-height: 1.6; }
+.safety-card.is-urgent {
+  border-color: var(--rose);
+  background: linear-gradient(0deg, var(--surface), var(--surface)), var(--inset-1);
+}
+.safety-card.is-urgent h3 { color: var(--rose); }
+.safety-card.is-disclaimer {
+  border-style: dashed;
+}
+@media (min-width: 760px) { .safety-card.is-disclaimer { grid-column: 1 / -1; } }
+.foot-links { display: flex; gap: 1rem; font-size: 0.75rem; }
+.foot-links a { color: var(--text-dim); text-underline-offset: 2px; }
+.foot-links a:hover { color: var(--amber-ink); }

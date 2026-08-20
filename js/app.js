@@ -210,13 +210,13 @@ function renderHeader() {
 // Navigation
 // ============================================================
 
-const VIEWS = ['plan', 'build', 'trips', 'trip', 'library', 'badges', 'play', 'leaderboard', 'profile'];
+const VIEWS = ['plan', 'build', 'trips', 'trip', 'library', 'badges', 'play', 'leaderboard', 'safety', 'profile'];
 
 function switchView(name) {
   currentView = name;
   for (const v of VIEWS) $(`#view-${v}`).hidden = v !== name;
   $$('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.view === name));
-  const renderers = { plan: renderPlan, build: renderBuild, trips: renderTrips, trip: renderTripDetail, library: renderLibrary, badges: renderBadges, play: renderGame, leaderboard: renderLeaderboard, profile: renderProfile };
+  const renderers = { plan: renderPlan, build: renderBuild, trips: renderTrips, trip: renderTripDetail, library: renderLibrary, safety: renderSafety, badges: renderBadges, play: renderGame, leaderboard: renderLeaderboard, profile: renderProfile };
   renderers[name]?.();
   renderHeader();
   window.scrollTo({ top: 0 });
@@ -1744,6 +1744,46 @@ function renderLeaderboard() {
         xp: formatNumber(rows[rank - 2].xp - user.xp + 1),
         name: rows[rank - 2].name,
       });
+}
+
+
+// ============================================================
+// Safety
+//
+// Emergency first, then the things that actually get people into
+// trouble in Scotland, then what this app is not. Held in the app so it
+// reads with no signal — which is exactly when it is needed.
+//
+// The wording is mirrored in SAFETY.md for review by someone qualified.
+// Change one and change the other.
+// ============================================================
+
+const SAFETY_SECTIONS = [
+  ['emergency', '🆘', true],
+  ['sms', '📶', true],
+  ['word', '🗒️', false],
+  ['weather', '🌦️', false],
+  ['light', '🔦', false],
+  ['nav', '🧭', false],
+  ['winter', '❄️', false],
+  ['water', '🌊', false],
+  ['ticks', '🕷️', false],
+  ['stalking', '🦌', false],
+  ['access', '🚶', false],
+];
+
+function renderSafety() {
+  $('#safety-body').innerHTML = `
+    ${SAFETY_SECTIONS.map(([key, icon, urgent]) => `
+      <section class="card safety-card ${urgent ? 'is-urgent' : ''}">
+        <h3><span aria-hidden="true">${icon}</span> ${esc(t(`safety.${key}.t`))}</h3>
+        <p>${esc(t(`safety.${key}.b`))}</p>
+      </section>`).join('')}
+
+    <section class="card safety-card is-disclaimer">
+      <h3><span aria-hidden="true">⚠️</span> ${esc(t('safety.disclaimer.t'))}</h3>
+      <p>${esc(t('safety.disclaimer.b'))}</p>
+    </section>`;
 }
 
 // ============================================================
