@@ -46,6 +46,8 @@ function freshProfile(name) {
     activity: [],       // [{ at, icon, key, params, xp }]
     stamps: {},         // { regionName: timestamp } — passport
     game: { best: 0, plays: 0, xpDate: null, xpToday: 0 },
+    eggs: {},          // { eggKey: timestamp } — hidden library entries found
+    lore: {},          // { loreId: timestamp } — entries actually read
   };
 }
 
@@ -58,6 +60,8 @@ function normalise(user) {
   if (!user) return user;
   user.stamps ||= {};
   user.game ||= { best: 0, plays: 0, xpDate: null, xpToday: 0 };
+  user.eggs ||= {};
+  user.lore ||= {};
   user.achievements ||= [];
   user.trips ||= [];
   user.activity ||= [];

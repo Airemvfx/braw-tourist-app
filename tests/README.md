@@ -16,6 +16,8 @@ your Playwright install differs.
 | `build` | the journey builder: filters, search, reordering, day stepper, save, both languages, wide layout |
 | `ferry` | a route across water says so, names the crossing, and costs the boat |
 | `export` | GPX and GeoJSON parse; a backup round-trips; a junk file fails without changing anything |
+| `geo` | live location: the consent gate, a refused permission, the moving dot, a geofence check-in, and that switching off releases the watch |
+| `library` | the lore library: unlock rules, filters, both languages, and an Easter egg firing |
 | `terrain` | the map sprite mounts once, redraws stay cheap, no console errors |
 | `contrast` | every piece of text measured against its real composited background, both themes |
 | `sweep` | every view renders in both themes with no page errors |

@@ -149,6 +149,46 @@ export function routePath(pts) {
   return out.map((q, i) => `${i === 0 ? 'M' : 'L'}${q[0].toFixed(1)},${q[1].toFixed(1)}`).join('');
 }
 
+/**
+ * Move the live location dot without redrawing the map.
+ *
+ * A GPS fix can arrive every second or two. Re-rendering the whole SVG
+ * for each one would throw away the terrain sprite reference, the marker
+ * handlers and the route animation just to move one circle, so the dot
+ * is patched in place instead.
+ */
+export function updateUserDot(scope, userPos) {
+  const svg = scope && scope.querySelector('svg.scotmap');
+  if (!svg) return;
+  let g = svg.querySelector('.user-location');
+
+  if (!userPos || !userPos.lat) { if (g) g.remove(); return; }
+
+  const lat = Math.max(BOUNDS.latMin, Math.min(BOUNDS.latMax, userPos.lat));
+  const lon = Math.max(BOUNDS.lonMin, Math.min(BOUNDS.lonMax, userPos.lon));
+  const [x, y] = project(lon, lat);
+  const pxPerM = (W / (BOUNDS.lonMax - BOUNDS.lonMin)) / 111_000;
+  const accR = Math.min(40, Math.max(6, (userPos.accuracy || 50) * pxPerM));
+
+  if (!g) {
+    g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    g.setAttribute('class', 'user-location');
+    g.innerHTML = `<circle class="ul-accuracy"/><circle class="ul-pulse" r="9"/>` +
+                  `<circle class="ul-dot" r="5.5"/><title></title>`;
+    svg.appendChild(g);           // last child: on top of the route and pins
+  }
+  g.setAttribute('transform', `translate(${x.toFixed(1)},${y.toFixed(1)})`);
+  g.querySelector('.ul-accuracy').setAttribute('r', accR.toFixed(1));
+  g.querySelector('title').textContent =
+    t('map.yourLocation', { n: Math.round(userPos.accuracy || 0) });
+
+  // Off the edge of Scotland the dot would otherwise sit on the frame
+  // pretending to be a position. Say so instead.
+  const inBounds = userPos.lat >= BOUNDS.latMin && userPos.lat <= BOUNDS.latMax &&
+                   userPos.lon >= BOUNDS.lonMin && userPos.lon <= BOUNDS.lonMax;
+  g.classList.toggle('is-offmap', !inBounds);
+}
+
 const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 
 /**

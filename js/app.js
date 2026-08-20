@@ -10,12 +10,17 @@ import {
 import { store } from './store.js';
 import { initTheme, setMode, getMode, onThemeChange } from './theme.js';
 import { loadFonts } from './fonts.js';
+import {
+  GEO, onLocationChange, locationState, startTracking, stopTracking,
+  watchStops, rearmStop, disarmStop, simulateAt, hasConsented, setConsent,
+  metresTo, nearestOf,
+} from './location.js';
 import { awardXP, evaluateAchievements, evaluateStamps, regionProgress, userStats, toastInfo, burstConfetti, setQuiet, activityText } from './gamification.js';
 import {
   generateTrip, tripProgress, tripStopIds, tripTitle, paceLabel, distKm,
   wildcardsFor, addStops,
 } from './planner.js';
-import { renderMap, mapKeyHTML } from './scotland-map.js';
+import { renderMap, mapKeyHTML, updateUserDot } from './scotland-map.js';
 import { leg as travelLeg, ferriesFor, ferryInfo } from './routing.js';
 import {
   downloadTripGPX, downloadTripGeoJSON, downloadBackup,
@@ -25,6 +30,7 @@ import { renderHero } from './hero-scene.js';
 import { renderShowcase, startShowcase, stopShowcase } from './showcase.js';
 import { loadPhotos, hasPhotos, mountBackdrop, mountCarousel, stopCarousel } from './photos-hero.js';
 import { nextQuestion, gameXPFor, recordRun, answerName } from './minigame.js';
+import { LORE, LORE_TYPES, loreForPoi, isUnlocked, loreProgress } from './lore.js';
 import { compressImage, savePhoto, getPhoto, deletePhoto, listPhotoIds } from './photos.js';
 import {
   t, getLang, setLang, onLangChange, applyStatic, LANGS,
@@ -83,7 +89,7 @@ function wireTheme() {
     b.classList.toggle('active', on);
     b.setAttribute('aria-pressed', String(on));
   });
-  onThemeChange(sync);
+  onThemeChange(theme => { sync(); if (theme === 'light') findEgg('darkmode'); });
   sync();
 }
 
@@ -204,13 +210,13 @@ function renderHeader() {
 // Navigation
 // ============================================================
 
-const VIEWS = ['plan', 'build', 'trips', 'trip', 'badges', 'play', 'leaderboard', 'profile'];
+const VIEWS = ['plan', 'build', 'trips', 'trip', 'library', 'badges', 'play', 'leaderboard', 'profile'];
 
 function switchView(name) {
   currentView = name;
   for (const v of VIEWS) $(`#view-${v}`).hidden = v !== name;
   $$('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.view === name));
-  const renderers = { plan: renderPlan, build: renderBuild, trips: renderTrips, trip: renderTripDetail, badges: renderBadges, play: renderGame, leaderboard: renderLeaderboard, profile: renderProfile };
+  const renderers = { plan: renderPlan, build: renderBuild, trips: renderTrips, trip: renderTripDetail, library: renderLibrary, badges: renderBadges, play: renderGame, leaderboard: renderLeaderboard, profile: renderProfile };
   renderers[name]?.();
   renderHeader();
   window.scrollTo({ top: 0 });
@@ -966,6 +972,7 @@ function poiBodyHTML(poi, trip, interactive) {
     <div class="pd-meta">${esc(regionName(poi.region))} · ${esc(poiTime(poi.time))} · <span class="stop-xp">✦ ${poi.xp} ${t('unit.xp')}</span></div>
     <p class="pd-blurb">${esc(poiBlurb(poi))}</p>
     <div class="pd-photo" data-photo-slot="${poi.id}"></div>
+    ${loreForPanel(poi)}
     ${interactive ? `
     <div class="pd-actions">
       <button class="visit-btn ${visited ? 'undo' : ''}" data-visit="${poi.id}">
@@ -1009,6 +1016,8 @@ function stopListHTML(trip, interactive) {
  * Tapping pin after pin used to walk the user down the page and leave
  * them scrolling back up each time; the map now stays put.
  */
+let nessieTimer = null;
+
 function openPoiPanel(poiId, scope = document, trip = null, interactive = true) {
   trip = trip || user.trips.find(t2 => t2.id === openTripId);
   const poi = POI_BY_ID[poiId];
@@ -1027,6 +1036,13 @@ function openPoiPanel(poiId, scope = document, trip = null, interactive = true) 
   scope.querySelectorAll('.map-marker').forEach(m => m.classList.toggle('is-active', m.dataset.poi === poiId));
   panel.scrollIntoView({ block: 'nearest' });
   hydratePhotos(panel);
+  // Watch the water for a while and see what happens.
+  clearTimeout(nessieTimer);
+  if (poiId === 'urquhart-loch-ness') {
+    nessieTimer = setTimeout(() => {
+      if (!panel.hidden && panel.dataset.poi !== 'closed') findEgg('nessie');
+    }, 15000);
+  }
 }
 
 function closePoiPanel(scope = document) {
@@ -1038,6 +1054,133 @@ function closePoiPanel(scope = document) {
 }
 
 const ferryName = id => ferryInfo(id)?.name || '';
+
+// ============================================================
+// Live location
+//
+// Opt-in, and the first tap explains itself before the browser's own
+// permission prompt appears — a bare system dialog with no context is
+// the fastest way to get told no.
+// ============================================================
+
+function renderGeoBar(trip) {
+  const host = $('#geo-bar');
+  if (!host) return;
+  const { state, position } = locationState();
+  const on = state === GEO.ON;
+  const busy = state === GEO.ASKING;
+
+  const problem = { [GEO.DENIED]: 'geo.denied', [GEO.UNAVAILABLE]: 'geo.unavailable', [GEO.FAILED]: 'geo.failed' }[state];
+  const stops = tripStopIds(trip).map(id => POI_BY_ID[id]).filter(Boolean);
+  const near = on ? nearestOf(stops) : null;
+
+  host.innerHTML = `
+    <button type="button" class="geo-toggle ${on ? 'is-on' : ''}" id="geo-toggle"
+            aria-pressed="${on}" ${busy ? 'disabled' : ''}>
+      <span class="geo-dot ${on ? 'is-live' : ''}" aria-hidden="true"></span>
+      ${esc(busy ? t('geo.asking') : on ? t('geo.on') : t('geo.title'))}
+    </button>
+    ${on && position ? `
+      <span class="geo-meta">
+        ${esc(near ? t('geo.nearest', { name: poiName(near.poi), dist: formatMetres(near.metres) }) : '')}
+        <i>${esc(t('geo.accuracy', { n: Math.round(position.accuracy || 0) }))}</i>
+      </span>
+      <button type="button" class="link-btn geo-sim" id="geo-sim">${t('geo.simulate')}</button>` : ''}
+    ${problem ? `<span class="geo-problem">${esc(t(problem))}</span>` : ''}`;
+
+  $('#geo-toggle').addEventListener('click', () => {
+    if (locationState().state === GEO.ON) { stopTracking(); setConsent(false); return; }
+    if (hasConsented()) beginTracking();
+    else askForLocation();
+  });
+  $('#geo-sim')?.addEventListener('click', () => {
+    const next = stops.find(p => !trip.visited[p.id]) || stops[0];
+    if (next && simulateAt(next)) toastInfo(t('geo.simulated', { name: poiName(next) }), '🛰️');
+  });
+
+}
+
+/**
+ * One subscription for the life of the app.
+ *
+ * This used to re-subscribe from inside renderGeoBar, which is itself
+ * called by the listener — and adding to a Set during its own forEach
+ * means the new entry is visited in the same pass, which re-subscribes,
+ * which... the tab locked up on the first position fix.
+ */
+function wireLocation() {
+  onLocationChange(({ position: pos }) => {
+    if (currentView !== 'trip') return;
+    updateUserDot($('#trip-detail'), pos);
+    const trip = user?.trips.find(t2 => t2.id === openTripId);
+    if (trip && $('#geo-bar')) renderGeoBar(trip);
+  });
+}
+
+function formatMetres(m) {
+  if (m == null) return '';
+  return m < 1000 ? `${m} m` : formatDistance({ distanceKm: Math.round(m / 100) / 10, distanceMi: Math.round(m / 160.9) / 10 });
+}
+
+/** Explain before the browser asks. */
+function askForLocation() {
+  const wrap = document.createElement('div');
+  wrap.className = 'geo-consent';
+  wrap.innerHTML = `
+    <div class="geo-consent-card" role="dialog" aria-modal="true" aria-labelledby="geo-consent-h">
+      <h3 id="geo-consent-h">${t('geo.explainTitle')}</h3>
+      <p>${esc(t('geo.explain'))}</p>
+      <p class="geo-battery">${esc(t('geo.explainBattery'))}</p>
+      <div class="geo-consent-actions">
+        <button class="btn btn-primary btn-sm" id="geo-yes">${t('geo.allow')}</button>
+        <button class="btn btn-ghost btn-sm" id="geo-no">${t('geo.notNow')}</button>
+      </div>
+    </div>`;
+  document.body.appendChild(wrap);
+  const close = () => wrap.remove();
+  wrap.querySelector('#geo-no').addEventListener('click', close);
+  wrap.addEventListener('click', e => { if (e.target === wrap) close(); });
+  wrap.querySelector('#geo-yes').addEventListener('click', () => {
+    close();
+    setConsent(true);
+    beginTracking();
+  });
+  wrap.querySelector('#geo-yes').focus();
+}
+
+function beginTracking() {
+  startTracking({ onArrive: onGeoArrive });
+  const trip = user.trips.find(t2 => t2.id === openTripId);
+  if (trip) {
+    const stops = tripStopIds(trip).map(id => POI_BY_ID[id]).filter(Boolean);
+    watchStops(stops.filter(p => !trip.visited[p.id]));
+    renderGeoBar(trip);
+  }
+}
+
+/** Geofence hit: offer the check-in rather than doing it silently. */
+function onGeoArrive(poi, metres) {
+  const trip = user.trips.find(t2 => t2.id === openTripId);
+  if (!trip || trip.visited[poi.id]) return;
+  const prompt = $('#geo-prompt');
+  $('#geo-icon').textContent = poi.icon;
+  $('#geo-poi-name').textContent = poiName(poi);
+  $('#geo-meta').textContent = t('geo.arrivedMeta', {
+    region: regionName(poi.region), xp: poi.xp, dist: formatMetres(metres),
+  });
+  prompt.classList.add('show');
+
+  const done = () => { prompt.classList.remove('show'); };
+  $('#geo-confirm').onclick = () => {
+    done();
+    disarmStop(poi.id);
+    const t2 = user.trips.find(x => x.id === openTripId);
+    if (t2 && !t2.visited[poi.id]) toggleVisited(t2, poi.id);
+  };
+  $('#geo-dismiss').onclick = () => { done(); rearmStop(poi.id); };
+  // never leave it hanging over the map
+  setTimeout(() => { if (prompt.classList.contains('show')) done(); }, 20000);
+}
 
 function renderTripDetail() {
   const trip = user.trips.find(t2 => t2.id === openTripId) || user.trips[0];
@@ -1093,6 +1236,8 @@ function renderTripDetail() {
     <div class="map-stage">${renderMap(stops, trip.start)}</div>
     ${mapKeyHTML()}
 
+    <div class="geo-bar" id="geo-bar"></div>
+
     <div class="trip-export">
       <button type="button" class="btn btn-ghost btn-sm" id="dl-gpx"
               title="${esc(t('data.gpxHint'))}">${t('data.gpx')}</button>
@@ -1114,6 +1259,9 @@ function renderTripDetail() {
   wireMapMarkers(host);
   wireStopList(host, trip);
   hydratePhotos(host);
+  renderGeoBar(trip);
+  watchStops(stops.filter(x => !x.visited).map(x => x.poi));
+  updateUserDot(host, locationState().position);
 }
 
 /** Tapping a pin opens the panel above the map rather than scrolling. */
@@ -1284,6 +1432,129 @@ function wirePhotos() {
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape' && !$('#photo-viewer').hidden) closePhoto();
   });
+}
+
+
+// ============================================================
+// The Library
+//
+// Everything ships with the app, so it reads in a glen with no signal.
+// Most entries open as you travel, which is the point: the reward for
+// standing somewhere is being told why it matters.
+// ============================================================
+
+let libFilter = 'all';
+
+/** The user, plus the derived level the unlock rules ask about. */
+function loreUser() {
+  return user ? { ...user, level: LEVELS.fromXP(user.xp).level } : null;
+}
+
+/** Award the hidden entries. Returns true if this one is new. */
+function findEgg(key) {
+  if (!user) return false;
+  user.eggs = user.eggs || {};
+  if (user.eggs[key]) return false;
+  user.eggs[key] = Date.now();
+  store.save();
+  const entry = LORE.find(l => l.unlock && l.unlock.egg === key);
+  if (entry) {
+    toastInfo(t('library.found', { title: loreTitle(entry) }), LORE_TYPES.egg.icon);
+    burstConfetti(30);
+  }
+  return true;
+}
+
+const loreTitle = e => (e[getLang()] || e.en).t;
+const loreBody  = e => (e[getLang()] || e.en).b;
+
+/** Mark an entry as read, so the library can show what is new. */
+function markRead(id) {
+  if (!user) return;
+  user.lore = user.lore || {};
+  if (!user.lore[id]) { user.lore[id] = Date.now(); store.save(); }
+}
+
+function lockHint(entry) {
+  const u = entry.unlock || {};
+  if (u.visit) return t('library.hint.visit', { name: poiName(POI_BY_ID[u.visit]) });
+  if (u.region) return t('library.hint.region', { name: regionName(u.region) });
+  if (u.level) return t('library.hint.level', { n: u.level });
+  return t('library.hint.egg');
+}
+
+function renderLibrary() {
+  const lu = loreUser();
+  const prog = loreProgress(lu);
+  $('#lib-count').textContent = t('library.count', { open: prog.open, total: prog.total });
+  $('#lib-progress').style.width = `${prog.pct}%`;
+
+  const types = ['all', ...Object.keys(LORE_TYPES)];
+  $('#lib-filters').innerHTML = types.map(k => `
+    <button type="button" class="chip ${libFilter === k ? 'active' : ''}" data-lib-filter="${k}">
+      ${k === 'all' ? '' : LORE_TYPES[k].icon + ' '}${esc(t(k === 'all' ? 'library.filter.all' : `library.type.${k}`))}
+    </button>`).join('');
+  $$('#lib-filters [data-lib-filter]').forEach(b =>
+    b.addEventListener('click', () => { libFilter = b.dataset.libFilter; renderLibrary(); }));
+
+  const list = LORE.filter(l => libFilter === 'all' || l.type === libFilter);
+  const host = $('#lib-list');
+  if (!list.length) { host.innerHTML = `<p class="muted">${t('library.empty')}</p>`; return; }
+
+  host.innerHTML = list.map(e => {
+    const open = isUnlocked(e, lu);
+    if (!open) {
+      return `
+        <article class="lore-card is-locked">
+          <div class="lore-top"><span class="lore-icon">🔒</span>
+            <span class="lore-kind">${esc(t('library.locked'))}</span></div>
+          <p class="lore-hint">${esc(lockHint(e))}</p>
+        </article>`;
+    }
+    const isNew = !(user.lore || {})[e.id];
+    return `
+      <article class="lore-card ${isNew ? 'is-new' : ''}" data-lore="${e.id}">
+        <div class="lore-top">
+          <span class="lore-icon">${LORE_TYPES[e.type].icon}</span>
+          <span class="lore-kind">${esc(t(`library.type.${e.type}`))}</span>
+          ${isNew ? `<span class="lore-new">${esc(t('library.newBadge'))}</span>` : ''}
+        </div>
+        <h3 class="lore-title">${esc(loreTitle(e))}</h3>
+        <p class="lore-body">${esc(loreBody(e))}</p>
+        ${e.type === 'legend' ? `<p class="lore-note">${esc(t('library.legendNote'))}</p>` : ''}
+        ${e.poi ? `<button type="button" class="link-btn lore-goto" data-lore-poi="${e.poi}">${esc(poiName(POI_BY_ID[e.poi]))} →</button>` : ''}
+      </article>`;
+  }).join('');
+
+  // reading an entry clears its "new" flag
+  host.querySelectorAll('[data-lore]').forEach(card => {
+    markRead(card.dataset.lore);
+  });
+  checkLibraryComplete();
+}
+
+/** The last hidden entry: open everything else and it appears. */
+function checkLibraryComplete() {
+  const lu = loreUser();
+  if (!lu) return;
+  const others = LORE.filter(l => !(l.unlock && l.unlock.egg === 'library'));
+  if (others.every(l => isUnlocked(l, lu))) findEgg('library');
+}
+
+/** Lore shown inline on a location, when it is open. */
+function loreForPanel(poi) {
+  const lu = loreUser();
+  const open = loreForPoi(poi.id).filter(l => isUnlocked(l, lu));
+  if (!open.length) return '';
+  const first = open[0];
+  markRead(first.id);
+  return `
+    <div class="pd-lore">
+      <span class="pd-lore-kicker">${LORE_TYPES[first.type].icon} ${esc(t('lore.did'))}</span>
+      <b>${esc(loreTitle(first))}</b>
+      <p>${esc(loreBody(first))}</p>
+      ${open.length > 1 ? `<i>${esc(t('lore.more', { n: open.length - 1 }))}</i>` : ''}
+    </div>`;
 }
 
 // ============================================================
@@ -1512,6 +1783,7 @@ function renderProfile() {
         ['🏅', user.achievements.length, 'profile.stat.badges'],
         ['🛂', Object.keys(user.stamps || {}).length, 'profile.stat.stamps'],
         ['📸', photoCount, 'profile.stat.photos'],
+        ['📖', loreProgress(loreUser()).open, 'profile.stat.lore'],
       ].map(([icon, n, key]) => `
         <div class="stat card"><span class="stat-icon">${icon}</span><span class="stat-n">${n}</span><span class="stat-label">${esc(t(key))}</span></div>`).join('')}
     </div>
@@ -1611,6 +1883,18 @@ function renderLanding() {
     mountCarousel($('#ph-carousel'));
     document.documentElement.classList.add('has-photos');
   });
+  // Seven taps on the wordmark. Somebody always tries.
+  const mark = $('.wordmark');
+  if (mark && !mark.dataset.eggWired) {
+    mark.dataset.eggWired = '1';
+    let taps = 0, timer = null;
+    mark.addEventListener('click', () => {
+      taps++;
+      clearTimeout(timer);
+      timer = setTimeout(() => { taps = 0; }, 1200);
+      if (taps >= 7) { taps = 0; findEgg('wordmark'); }
+    });
+  }
   $('#stat-places').textContent = POIS.length;
   $('#stat-interests').textContent = Object.keys(INTERESTS).length;
   $('#stat-badges').textContent = ACHIEVEMENTS.length;
@@ -1626,6 +1910,7 @@ document.addEventListener('DOMContentLoaded', () => {
   wireAuth();
   wireNav();
   wirePhotos();
+  wireLocation();
   $('#plan-go').addEventListener('click', runPlanner);
   $('#plan-input').addEventListener('keydown', e => {
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) runPlanner();

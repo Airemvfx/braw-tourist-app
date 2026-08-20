@@ -19,7 +19,7 @@ if ! curl -sf -o /dev/null "http://localhost:$PORT/"; then
   sleep 1
 fi
 
-SUITES=${1:-"prompts build ferry export terrain contrast sweep nav"}
+SUITES=${1:-"prompts build ferry export geo library terrain contrast sweep nav"}
 FAILED=0
 for s in $SUITES; do
   echo ""
