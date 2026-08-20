@@ -19,6 +19,7 @@ your Playwright install differs.
 | `geo` | live location: the consent gate, a refused permission, the moving dot, a geofence check-in, and that switching off releases the watch |
 | `library` | the lore library: unlock rules, filters, both languages, and an Easter egg firing |
 | `safety` | the safety screen is complete, emergency info comes first, and both languages are filled in |
+| `scope` | trips scoped to a city or region, place names on the map, and the seasonal strip in both languages |
 | `terrain` | the map sprite mounts once, redraws stay cheap, no console errors |
 | `contrast` | every piece of text measured against its real composited background, both themes |
 | `sweep` | every view renders in both themes with no page errors |

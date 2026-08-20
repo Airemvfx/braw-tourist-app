@@ -212,6 +212,60 @@ export function mapKeyHTML() {
     </ul>`;
 }
 
+// ---------------------------------------------------------------
+// Place names.
+//
+// A map without names is a picture. Tier 1 are the places anyone
+// orienting themselves looks for first; tier 2 fill in the coast and
+// the Highlands and are hidden on small screens, where there is no
+// room for them and no need.
+// ---------------------------------------------------------------
+const MAP_PLACES = [
+  // tier, name, lat, lon, anchor ('e' puts the label to the right of the dot)
+  [1, 'Edinburgh',   55.953, -3.188, 'e'],
+  [1, 'Glasgow',     55.864, -4.252, 'w'],
+  [1, 'Aberdeen',    57.150, -2.094, 'w'],
+  [1, 'Inverness',   57.478, -4.225, 'e'],
+  [1, 'Dundee',      56.462, -2.971, 'w'],
+  [1, 'Perth',       56.396, -3.437, 'w'],
+  [1, 'Stirling',    56.117, -3.937, 'w'],
+  [1, 'Fort William',56.820, -5.105, 'e'],
+  [1, 'Oban',        56.415, -5.472, 'w'],
+  [2, 'Ayr',         55.458, -4.629, 'w'],
+  [2, 'Dumfries',    55.070, -3.605, 'e'],
+  [2, 'Stranraer',   54.903, -5.026, 'e'],
+  [2, 'Melrose',     55.599, -2.718, 'e'],
+  [2, 'St Andrews',  56.340, -2.797, 'e'],
+  [2, 'Elgin',       57.649, -3.315, 'e'],
+  [2, 'Pitlochry',   56.703, -3.733, 'e'],
+  [2, 'Braemar',     57.006, -3.397, 'w'],
+  [2, 'Aviemore',    57.190, -3.828, 'e'],
+  [2, 'Ullapool',    57.895, -5.161, 'e'],
+  [2, 'Thurso',      58.594, -3.522, 'e'],
+  [2, 'Wick',        58.441, -3.094, 'e'],
+  [2, 'Durness',     58.567, -4.746, 'e'],
+  [2, 'Portree',     57.413, -6.194, 'w'],
+  [2, 'Kyle of Lochalsh', 57.281, -5.716, 'e'],
+  [2, 'Mallaig',     57.006, -5.828, 'w'],
+  [2, 'Tobermory',   56.623, -6.072, 'w'],
+  [2, 'Stornoway',   58.209, -6.386, 'w'],
+  [2, 'Campbeltown', 55.426, -5.606, 'w'],
+];
+
+/** Names, drawn under the route and the pins so they never cover one. */
+function placeLabels() {
+  return MAP_PLACES.map(([tier, name, lat, lon, anchor]) => {
+    const [x, y] = project(lon, lat);
+    const dx = anchor === 'e' ? 5.5 : -5.5;
+    return `
+      <g class="map-place t${tier}">
+        <circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="1.9"/>
+        <text x="${(x + dx).toFixed(1)}" y="${(y + 3).toFixed(1)}"
+              text-anchor="${anchor === 'e' ? 'start' : 'end'}">${esc(cityName(name))}</text>
+      </g>`;
+  }).join('');
+}
+
 /**
  * Render the map as an SVG string.
  * @param stops  [{ poi, visited, order }] in route order
@@ -329,6 +383,8 @@ export function renderMap(stops = [], start = null, userPos = null, opts = {}) {
       <path d="M0,-20 L5,6 L0,1 L-5,6 Z" class="compass-needle"/>
       <text y="-32" text-anchor="middle" class="compass-n">N</text>
     </g>
+
+    <g class="map-places">${opts.noLabels ? '' : placeLabels()}</g>
 
     <g class="map-cands">${candidates}</g>
 

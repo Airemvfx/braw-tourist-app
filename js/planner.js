@@ -7,7 +7,7 @@
 // Swappable later for a real LLM + routing API.
 // ============================================================
 
-import { POIS, POI_BY_ID, INTERESTS, START_CITIES, REGION_HINTS } from './data.js';
+import { POIS, POI_BY_ID, INTERESTS, START_CITIES, REGION_HINTS, TRIP_CENTRES, REGIONS } from './data.js';
 import { t as translate } from './i18n.js';
 import { routeTotals, orderByTravel } from './routing.js';
 
@@ -47,13 +47,15 @@ export function parsePrompt(text) {
   }
 
   // duration — English and Polish day/night/week wording
-  let days = 5;
+  let days = 5, daysGiven = false;
   const m = t.match(/(\d+)\s*(?:days?|nights?|dni|dzien|dni|noc|nocy|noce|dob[ay]?)/);
-  if (m) days = parseInt(m[1], 10);
-  else if (/fortnight|dwa tygodnie/.test(t)) days = 10;
-  else if (/\bweek\b|tydzien|tygodnia|tygodniowy/.test(t)) days = 7;
-  else if (/weekend/.test(t)) days = 2;
-  days = Math.max(2, Math.min(10, days));
+  if (m) { days = parseInt(m[1], 10); daysGiven = true; }
+  else if (/fortnight|dwa tygodnie/.test(t)) { days = 10; daysGiven = true; }
+  else if (/\bweek\b|tydzien|tygodnia|tygodniowy/.test(t)) { days = 7; daysGiven = true; }
+  else if (/weekend/.test(t)) { days = 2; daysGiven = true; }
+  // "a day in Edinburgh", "day trip", "jeden dzien" — one day means one.
+  else if (/\ba day\b|day trip|jeden dzien|na dzien/.test(t)) { days = 1; daysGiven = true; }
+  days = Math.max(1, Math.min(10, days));
 
   // pace → stops per day
   let pace = 3, paceKey = 'steady';
@@ -73,7 +75,67 @@ export function parsePrompt(text) {
     if (hint.words.some(w => t.includes(normalise(w).slice(1, -1)))) hint.regions.forEach(r => regionBias.add(r));
   }
 
-  return { text, interests, days, pace, paceKey, start, regionBias: [...regionBias] };
+  // Scope: a whole-Scotland tour, one region, or a short break around a
+  // town. Written as "2 days around Aberdeen" or picked from the chips.
+  let scope = { kind: 'national' };
+  // "from Edinburgh" names where you set off; "around Edinburgh" names how
+  // far you are willing to go. Without this distinction a five-day tour
+  // starting in Edinburgh was being confined to a 30 km circle around it.
+  const isStartPhrasing = /\bfrom\b|\bstarting\b|\bstart\b|ze startem|zaczynam|wyrusz/.test(t);
+  if (!isStartPhrasing) {
+    for (const c of TRIP_CENTRES) {
+      if ([c.id.replace('-', ' '), c.name.toLowerCase(), ...(c.aliases || [])].some(has)) {
+        scope = { kind: 'city', id: c.id };
+        break;
+      }
+    }
+  }
+  // Only look for a region if no town matched: "a day in Edinburgh" is a
+  // city break, not a tour of Edinburgh & Lothians, and the region name
+  // starts with the town name so it would otherwise always win.
+  if (scope.kind === 'national' && !isStartPhrasing) {
+    for (const r of REGIONS) {
+      if (has(r.name.toLowerCase()) || has(r.name.split(' ')[0].toLowerCase())) {
+        scope = { kind: 'region', id: r.name };
+        break;
+      }
+    }
+  }
+
+  return { text, interests, days, daysGiven, pace, paceKey, start, scope, regionBias: [...regionBias] };
+}
+
+/**
+ * Narrow the whole map down to what a scoped trip should consider.
+ * A city break should not offer Skye, however good Skye is.
+ */
+export function poisInScope(scope) {
+  if (!scope || scope.kind === 'national') return POIS;
+  if (scope.kind === 'region') return POIS.filter(p => p.region === scope.id);
+  const c = TRIP_CENTRES.find(x => x.id === scope.id);
+  if (!c) return POIS;
+  return POIS.filter(p => distKm(p, c) <= c.km);
+}
+
+/** The town or region a scoped trip should start from. */
+export function startForScope(scope, fallback) {
+  if (scope && scope.kind === 'city') {
+    const c = TRIP_CENTRES.find(x => x.id === scope.id);
+    if (c) return { name: c.name, lat: c.lat, lon: c.lon };
+  }
+  if (scope && scope.kind === 'region') {
+    const inRegion = POIS.filter(p => p.region === scope.id);
+    if (inRegion.length) {
+      // start from whichever recognised town is nearest the region
+      let best = fallback, bd = Infinity;
+      for (const [, city] of Object.entries(START_CITIES)) {
+        const d = Math.min(...inRegion.map(p => distKm(p, city)));
+        if (d < bd) { bd = d; best = city; }
+      }
+      return best;
+    }
+  }
+  return fallback;
 }
 
 function scorePoi(poi, req) {
@@ -149,7 +211,9 @@ export function wildcardsFor(trip, count = 2) {
   const onRoute = tripStopIds(trip).map(id => POI_BY_ID[id]).filter(Boolean);
   if (!onRoute.length) return [];
 
+  const scoped = new Set(poisInScope(trip.scope).map(p => p.id));
   const outsiders = POIS.filter(p =>
+    scoped.has(p.id) &&
     !p.tags.some(tag => core.has(tag)) && !onRoute.some(s => s.id === p.id));
 
   return outsiders
@@ -186,10 +250,17 @@ function summarise(trip, route, dayCount) {
 // Occasionally — the point is a nudge, not a running commentary.
 const WILDCARD_CHANCE = 0.35;
 
-export function generateTrip(promptText) {
+export function generateTrip(promptText, scopeOverride) {
   const req = parsePrompt(promptText);
-  const pool = matchingPois(req.interests);
+  if (scopeOverride) req.scope = scopeOverride;
+  req.start = startForScope(req.scope, req.start);
+  // Scope first, then interests: "castles around Aberdeen" means castles
+  // that are near Aberdeen, not the best castles in Scotland.
+  const inScope = new Set(poisInScope(req.scope).map(p => p.id));
+  const pool = matchingPois(req.interests).filter(p => inScope.has(p.id));
   const themed = req.interests.length > 0;
+  // A city break defaults short unless the prompt asked for longer.
+  if (req.scope.kind === 'city' && !req.daysGiven) req.days = Math.min(req.days, 2);
   const stopCount = Math.min(req.days * req.pace, pool.length);
 
   const ranked = pool
@@ -222,6 +293,7 @@ export function generateTrip(promptText) {
     prompt: promptText,
     interests: req.interests,
     paceKey: req.paceKey,
+    scope: req.scope,
     start: req.start,
     createdAt: Date.now(),
     visited: {},

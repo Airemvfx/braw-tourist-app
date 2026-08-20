@@ -2551,3 +2551,94 @@ small { font-size: 0.78em; }
 .foot-links { display: flex; gap: 1rem; font-size: 0.75rem; }
 .foot-links a { color: var(--text-dim); text-underline-offset: 2px; }
 .foot-links a:hover { color: var(--amber-ink); }
+
+/* ============================================================
+   PLACE NAMES
+   A halo behind the type, because it crosses forest, farmland and
+   sea and has to stay legible over all of them.
+   ============================================================ */
+.map-place circle { fill: var(--text); opacity: 0.55; }
+.map-place text {
+  font-family: var(--font-ui);
+  fill: var(--text);
+  paint-order: stroke fill;
+  stroke: var(--map-sea);
+  stroke-width: 2.6px;
+  stroke-linejoin: round;
+  opacity: 0.88;
+  pointer-events: none;
+}
+.map-place.t1 text { font-size: 10.5px; font-weight: 600; letter-spacing: 0.02em; }
+.map-place.t2 text { font-size: 8.5px; font-weight: 400; opacity: 0.72; }
+.map-place.t2 circle { r: 1.4; opacity: 0.4; }
+
+/* On a phone the map is drawn small; the minor names become noise. */
+@media (max-width: 640px) {
+  .map-place.t2 { display: none; }
+  .map-place.t1 text { font-size: 12px; }
+}
+/* The landing showcase is smaller still and is scenery, not a tool. */
+.sc-map .map-place.t2 { display: none; }
+.sc-map .map-place.t1 text { font-size: 12px; }
+
+/* ============================================================
+   WHAT IS ON RIGHT NOW
+   ============================================================ */
+.season-strip { margin-bottom: 1.6rem; display: grid; gap: 0.8rem; }
+.season-head { display: grid; gap: 0.15rem; }
+.season-title { font-family: var(--font-display); font-size: 1.3rem; }
+.season-sub { font-size: 0.78rem; color: var(--text-faint); }
+.season-list {
+  list-style: none; margin: 0; padding: 0;
+  display: flex; gap: 0.7rem; overflow-x: auto;
+  scrollbar-width: none; padding-bottom: 0.2rem;
+}
+.season-list::-webkit-scrollbar { display: none; }
+.season-card {
+  flex: 0 0 clamp(220px, 72vw, 280px);
+  display: grid; gap: 0.25rem; align-content: start;
+  padding: 0.9rem 1rem; border-radius: 12px;
+  background: var(--surface); border: 1px solid var(--border);
+  box-shadow: var(--shadow-soft);
+  border-top: 3px solid var(--sage);
+}
+.season-card.k-warning { border-top-color: var(--rose); }
+.season-card.k-sky     { border-top-color: var(--amber); }
+.season-card.k-sport   { border-top-color: var(--gold); }
+.sn-icon { font-size: 1.3rem; line-height: 1; }
+.sn-kind {
+  font-family: var(--font-mono); font-size: 0.55rem; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--text-faint);
+}
+.sn-title { font-size: 0.95rem; font-weight: 600; line-height: 1.3; }
+.sn-body { font-size: 0.78rem; color: var(--text-dim); line-height: 1.55; }
+.sn-go { font-size: 0.74rem; justify-self: start; margin-top: 0.15rem; }
+.season-none, .season-soon { font-size: 0.8rem; color: var(--text-dim); line-height: 1.5; }
+.season-soon { font-size: 0.74rem; color: var(--text-faint); }
+@media (min-width: 900px) {
+  .season-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); overflow: visible; }
+  .season-card { flex: none; }
+}
+
+/* ---- how far the trip reaches ---- */
+.scope-picker {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.8rem;
+  margin-bottom: 1rem; padding: 0.8rem 0.9rem;
+  background: var(--inset-1); border: 1px solid var(--border); border-radius: 12px;
+}
+.scope-label {
+  font-family: var(--font-mono); font-size: 0.58rem; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--text-faint); flex: 1 0 100%;
+}
+.scope-kinds { display: flex; gap: 0.3rem; flex-wrap: wrap; }
+.scope-btn {
+  padding: 0.45rem 0.8rem; border-radius: 999px; cursor: pointer;
+  font-family: var(--font-ui); font-size: 0.8rem; font-weight: 500;
+  color: var(--text-dim); background: var(--surface);
+  border: 1px solid var(--border-strong);
+  transition: color 0.16s, background 0.16s, border-color 0.16s;
+}
+.scope-btn.active { color: var(--amber-ink); background: var(--amber-pale); border-color: var(--border-active); }
+#scope-place { flex: 1 1 12rem; max-width: 16rem; }
+.scope-count { font-family: var(--font-mono); font-size: 0.66rem; color: var(--text-faint); }
+.scope-count.is-thin { color: var(--rose); }

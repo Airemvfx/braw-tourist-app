@@ -44,7 +44,7 @@
 
           <!-- Counts are filled from the dataset so they can never drift -->
           <ul class="brand-stats">
-            <li><b id="stat-places">87</b><span data-i18n="auth.stat.places">locations</span></li>
+            <li><b id="stat-places">182</b><span data-i18n="auth.stat.places">locations</span></li>
             <li><b id="stat-interests">21</b><span data-i18n="auth.stat.interests">interests</span></li>
             <li><b id="stat-badges">17</b><span data-i18n="auth.stat.badges">achievements</span></li>
           </ul>
@@ -187,6 +187,12 @@
           <h1 class="view-title" data-i18n-html="plan.title">Where shall we <em>explore</em>?</h1>
           <p class="view-sub" data-i18n="plan.sub">Tell us your interests — a single sentence is enough. We'll build a personalised Scottish itinerary with real GPS tracking.</p>
         </div>
+        <!-- What is on in Scotland right now -->
+        <section class="season-strip" id="season-strip"></section>
+
+        <!-- How far the trip reaches -->
+        <div class="scope-picker" id="scope-picker"></div>
+
         <div class="plan-box card">
           <textarea id="plan-input" rows="3" data-i18n-placeholder="plan.placeholder" placeholder="e.g. I'm really into kayaking and wild swimming… or 5 days of highland castles from Inverness…"></textarea>
           <div class="plan-actions">

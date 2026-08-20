@@ -105,6 +105,30 @@ const EN = {
   'hdr.xp': '{into} / {need} XP',
 
   // ---- plan view ----
+  // ---- what is on right now ----
+  'season.title': 'In Scotland this month',
+  'season.sub': '{month} — rough guides, not guarantees. Nature does not read calendars.',
+  'season.plan': 'Plan around this',
+  'season.soon': 'Starting next month',
+  'season.none': 'Nothing seasonal is peaking just now — which makes it a good month for castles and whisky.',
+  'season.kind.wildlife': 'Wildlife',
+  'season.kind.nature': 'Nature',
+  'season.kind.sky': 'Sky',
+  'season.kind.weather': 'Weather',
+  'season.kind.sport': 'Season',
+  'season.kind.warning': 'Be ready',
+  'season.prompt': '{what} in Scotland',
+
+  // ---- how far a trip reaches ----
+  'scope.label': 'How far are you going?',
+  'scope.national': 'All of Scotland',
+  'scope.region': 'One region',
+  'scope.city': 'Around a city',
+  'scope.pick': 'Pick a place',
+  'scope.pill': '📍 {name}',
+  'scope.within': 'within {km} of {name}',
+  'scope.count': '{n} places in range',
+  'scope.tooFew': 'Only {n} places here — the trip will be short.',
   'plan.title': 'Where shall we <em>explore</em>?',
   'plan.sub': "Tell us your interests — a single sentence is enough. We'll build a personalised Scottish itinerary with real GPS tracking.",
   'plan.placeholder': "e.g. I'm really into kayaking and wild swimming… or 5 days of highland castles from Inverness…",
@@ -660,6 +684,30 @@ const PL = {
   'hdr.xp': '{into} / {need} PD',
 
   // ---- plan view ----
+  // ---- co dzieje się teraz ----
+  'season.title': 'W Szkocji w tym miesiącu',
+  'season.sub': '{month} — orientacyjnie, bez gwarancji. Natura nie czyta kalendarzy.',
+  'season.plan': 'Zaplanuj wokół tego',
+  'season.soon': 'Zaczyna się w przyszłym miesiącu',
+  'season.none': 'Nic sezonowego nie ma teraz szczytu — czyli to dobry miesiąc na zamki i whisky.',
+  'season.kind.wildlife': 'Przyroda',
+  'season.kind.nature': 'Natura',
+  'season.kind.sky': 'Niebo',
+  'season.kind.weather': 'Pogoda',
+  'season.kind.sport': 'Sezon',
+  'season.kind.warning': 'Przygotuj się',
+  'season.prompt': '{what} w Szkocji',
+
+  // ---- jak daleko sięga wyprawa ----
+  'scope.label': 'Jak daleko jedziesz?',
+  'scope.national': 'Cała Szkocja',
+  'scope.region': 'Jeden region',
+  'scope.city': 'Wokół miasta',
+  'scope.pick': 'Wybierz miejsce',
+  'scope.pill': '📍 {name}',
+  'scope.within': 'w promieniu {km} od {name}',
+  'scope.count': '{n} miejsc w zasięgu',
+  'scope.tooFew': 'Tylko {n} miejsc tutaj — wyprawa będzie krótka.',
   'plan.title': 'Dokąd <em>ruszamy</em>?',
   'plan.sub': 'Opowiedz nam o swoich zainteresowaniach — wystarczy jedno zdanie. Ułożymy spersonalizowany plan podróży po Szkocji ze śledzeniem GPS.',
   'plan.placeholder': 'np. Kręcą mnie kajaki i morsowanie… albo 5 dni górskich zamków z Inverness…',

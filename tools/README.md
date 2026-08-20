@@ -86,3 +86,33 @@ glen with an A-road from a glen with a footpath:
 
 Real road data (an OSM extract through OSRM or Valhalla) is the fix for
 both. This gets the dangerous cases right without a routing server.
+
+---
+
+# Adding locations (`newpois.py` + `add_pois.py` + `verify.py`)
+
+Locations are written **once**, with both languages together, in
+`newpois.py`. Nothing is edited by hand in two places.
+
+```
+python3 verify.py     # check before touching anything
+python3 add_pois.py   # split into data.js and i18n-content.js
+python3 build_routes.py   # then rebuild the travel matrix
+```
+
+`verify.py` is the important one and should always be run first. It
+checks every entry against:
+
+* the real Natural Earth land mask — a location more than 2 km from land
+  is a typo, not a location
+* its own name — anything called "Aberdeen …" that is not within 25 km of
+  Aberdeen is flagged. This caught a latitude typed as 55.15 instead of
+  57.15, which put Aberdeen Beach 222 km away in the Borders
+* duplicate ids, unknown region names, and missing Polish text
+
+Region names must match ones already in the dataset, or the new region
+gets no passport icon and no stamp.
+
+**After adding locations, rebuild the travel matrix.** Until you do, any
+new location falls back to a straight-line guess and will not know about
+ferries.

@@ -18,7 +18,7 @@ Serve the folder with any static server and open `index.html`
   - **pace** (relaxed / steady / ambitious → 2–4 stops per day),
   - **start city** (Edinburgh, Glasgow, Inverness, Oban…),
   - **region hints** ("west coast", "NC500", "Speyside"…).
-- Scores a curated dataset of **60 real Scottish locations** ([js/data.js](js/data.js)) against the request,
+- Scores a curated dataset of **182 real Scottish locations** ([js/data.js](js/data.js)) against the request,
   applies a region-diversity cap and a distance-reach penalty, then orders stops with
   **nearest-neighbour routing** from the start city and chunks them into days.
 - Animated "AI thinking" sequence, example prompt chips, and a **🎲 Reshuffle** to regenerate.

@@ -2,7 +2,7 @@
 // BRAW — app shell: auth, navigation, views, event wiring.
 // ============================================================
 
-import { POIS, POI_BY_ID, INTERESTS, LEVELS, XP_EVENTS, ACHIEVEMENTS, RIVALS, REGIONS, START_CITIES } from './data.js';
+import { POIS, POI_BY_ID, INTERESTS, LEVELS, XP_EVENTS, ACHIEVEMENTS, RIVALS, REGIONS, START_CITIES, TRIP_CENTRES } from './data.js';
 import {
   routeStats, optimiseOrder, equipmentFor, advisoriesFor,
   stampPreview, buildCustomTrip,
@@ -18,7 +18,7 @@ import {
 import { awardXP, evaluateAchievements, evaluateStamps, regionProgress, userStats, toastInfo, burstConfetti, setQuiet, activityText } from './gamification.js';
 import {
   generateTrip, tripProgress, tripStopIds, tripTitle, paceLabel, distKm,
-  wildcardsFor, addStops,
+  wildcardsFor, addStops, poisInScope,
 } from './planner.js';
 import { renderMap, mapKeyHTML, updateUserDot } from './scotland-map.js';
 import { leg as travelLeg, ferriesFor, ferryInfo } from './routing.js';
@@ -31,6 +31,7 @@ import { renderShowcase, startShowcase, stopShowcase } from './showcase.js';
 import { loadPhotos, hasPhotos, mountBackdrop, mountCarousel, stopCarousel } from './photos-hero.js';
 import { nextQuestion, gameXPFor, recordRun, answerName } from './minigame.js';
 import { LORE, LORE_TYPES, loreForPoi, isUnlocked, loreProgress } from './lore.js';
+import { seasonalNow, seasonalNext, monthName } from './seasons.js';
 import { compressImage, savePhoto, getPhoto, deletePhoto, listPhotoIds } from './photos.js';
 import {
   t, getLang, setLang, onLangChange, applyStatic, LANGS,
@@ -182,7 +183,11 @@ function seedDemoProgress() {
   const trip = generateTrip(t('planner.demoPrompt'));
   user.trips.unshift(trip);
   awardXP(user, XP_EVENTS.CREATE_TRIP, 'act.questCreated', { title: tripTitle(trip) }, '🗺️');
-  const ids = tripStopIds(trip).slice(0, 4);
+  // Leave at least one stop unvisited: the "next up" card, the geofences
+  // and the arrival prompt all need somewhere still to go, and a short
+  // themed trip can be shorter than the four we used to mark.
+  const all = tripStopIds(trip);
+  const ids = all.slice(0, Math.max(0, Math.min(4, all.length - 1)));
   for (const id of ids) {
     trip.visited[id] = Date.now();
     awardXP(user, POI_BY_ID[id].xp, 'act.visited', { poiId: id }, POI_BY_ID[id].icon);
@@ -237,6 +242,101 @@ function wireNav() {
 // View: Plan a new quest
 // ============================================================
 
+// ============================================================
+// What is on right now, and how far the trip reaches
+// ============================================================
+
+// Held in memory rather than saved: it is a property of the trip being
+// planned, not of the person.
+let planScope = { kind: 'national' };
+
+function renderSeasonStrip() {
+  const host = $('#season-strip');
+  if (!host) return;
+  const now = seasonalNow();
+  const soon = seasonalNext();
+
+  host.innerHTML = `
+    <div class="season-head">
+      <h2 class="season-title">${esc(t('season.title'))}</h2>
+      <p class="season-sub">${esc(t('season.sub', { month: monthName(locale()) }))}</p>
+    </div>
+    ${now.length ? `
+      <ul class="season-list">
+        ${now.map(sn => `
+          <li class="season-card k-${sn.kind}">
+            <span class="sn-icon" aria-hidden="true">${sn.icon}</span>
+            <span class="sn-kind">${esc(t(`season.kind.${sn.kind}`))}</span>
+            <b class="sn-title">${esc(loc(sn).t)}</b>
+            <p class="sn-body">${esc(loc(sn).b)}</p>
+            ${sn.pois.length ? `<button type="button" class="link-btn sn-go" data-season="${sn.id}">${esc(t('season.plan'))} →</button>` : ''}
+          </li>`).join('')}
+      </ul>` : `<p class="season-none">${esc(t('season.none'))}</p>`}
+    ${soon.length ? `
+      <p class="season-soon">${esc(t('season.soon'))}: ${soon.map(x => `${x.icon} ${esc(loc(x).t)}`).join(' · ')}</p>` : ''}`;
+
+  host.querySelectorAll('[data-season]').forEach(b =>
+    b.addEventListener('click', () => planSeason(b.dataset.season)));
+}
+
+const loc = entry => entry[getLang()] || entry.en;
+
+/** Build a trip straight out of a seasonal entry's places. */
+function planSeason(id) {
+  const sn = seasonalNow().find(x => x.id === id) || seasonalNext().find(x => x.id === id);
+  if (!sn || !sn.pois.length) return;
+  const ids = sn.pois.filter(x => POI_BY_ID[x]);
+  if (!ids.length) return;
+  planScope = { kind: 'national' };
+  renderScopePicker();
+  $('#plan-input').value = t('season.prompt', { what: loc(sn).t.toLowerCase() });
+  // Seed the builder rather than the planner: these are specific places,
+  // not a theme, and the builder is what assembles a named list.
+  build.ids = ids;
+  build.days = 0;
+  switchView('build');
+  toastInfo(t('season.plan') + ' — ' + loc(sn).t, sn.icon);
+}
+
+function renderScopePicker() {
+  const host = $('#scope-picker');
+  if (!host) return;
+  const kinds = ['national', 'region', 'city'];
+  const inRange = poisInScope(planScope).length;
+
+  host.innerHTML = `
+    <span class="scope-label">${esc(t('scope.label'))}</span>
+    <div class="scope-kinds" role="group" aria-label="${esc(t('scope.label'))}">
+      ${kinds.map(k => `
+        <button type="button" class="scope-btn ${planScope.kind === k ? 'active' : ''}" data-scope-kind="${k}">
+          ${esc(t(`scope.${k}`))}
+        </button>`).join('')}
+    </div>
+    ${planScope.kind !== 'national' ? `
+      <select id="scope-place" class="bd-select" aria-label="${esc(t('scope.pick'))}">
+        ${(planScope.kind === 'city' ? TRIP_CENTRES : REGIONS).map(o => {
+          const id = planScope.kind === 'city' ? o.id : o.name;
+          const label = planScope.kind === 'city' ? cityName(o.name) : regionName(o.name);
+          return `<option value="${esc(id)}" ${planScope.id === id ? 'selected' : ''}>${esc(label)}</option>`;
+        }).join('')}
+      </select>
+      <span class="scope-count ${inRange < 5 ? 'is-thin' : ''}">
+        ${esc(inRange < 5 ? t('scope.tooFew', { n: inRange }) : t('scope.count', { n: inRange }))}
+      </span>` : ''}`;
+
+  $$('#scope-picker [data-scope-kind]').forEach(b => b.addEventListener('click', () => {
+    const kind = b.dataset.scopeKind;
+    planScope = kind === 'national' ? { kind }
+      : kind === 'city' ? { kind, id: TRIP_CENTRES[0].id }
+      : { kind, id: REGIONS[0].name };
+    renderScopePicker();
+  }));
+  $('#scope-place')?.addEventListener('change', e => {
+    planScope = { ...planScope, id: e.target.value };
+    renderScopePicker();
+  });
+}
+
 function renderPlan() {
   // Second copy of the landing glen, id-namespaced so its gradients and
   // clips cannot be captured by the one on the auth screen.
@@ -249,6 +349,8 @@ function renderPlan() {
   host.querySelectorAll('.chip').forEach(c =>
     c.addEventListener('click', () => { $('#plan-input').value = c.dataset.prompt; $('#plan-input').focus(); })
   );
+  renderSeasonStrip();
+  renderScopePicker();
   if (!draftTrip) { $('#plan-result').hidden = true; $('#plan-thinking').hidden = true; }
   else renderDraft();
 }
@@ -303,7 +405,7 @@ async function runPlanner() {
       requestAnimationFrame(() => row.classList.add('on'));
       await new Promise(r => setTimeout(r, 380 + Math.random() * 220));
     }
-    draftTrip = generateTrip(text);
+    draftTrip = generateTrip(text, planScope);
     think.hidden = true;
     renderDraft();
     scrollTo($('#plan-result'), 'start');
@@ -395,6 +497,11 @@ function renderDraft() {
           <h2 class="trip-title">${esc(tripTitle(trip))}</h2>
           <div class="pill-row">${interestPills(trip.interests)}
             ${trip.interests.length ? `<span class="pill pill-sage">${t('plan.themeOnly', { n: stops.length })}</span>` : ''}
+            ${trip.scope && trip.scope.kind !== 'national' ? `<span class="pill pill-neutral">${esc(t('scope.pill', {
+              name: trip.scope.kind === 'city'
+                ? cityName((TRIP_CENTRES.find(c => c.id === trip.scope.id) || {}).name || trip.scope.id)
+                : regionName(trip.scope.id),
+            }))}</span>` : ''}
             <span class="pill pill-dim">${t('trip.distance', { dist: formatDistance(trip) })}</span>
             <span class="pill pill-dim">${t('trip.pace', { pace: paceLabel(trip) })}</span>
             <span class="pill pill-gold">${t('trip.xpOffer', { xp: trip.xpOnOffer + XP_EVENTS.CREATE_TRIP })}</span>
@@ -412,7 +519,7 @@ function renderDraft() {
       <div class="stop-list">${stopListHTML(trip, false)}</div>
     </div>`;
 
-  $('#reshuffle-btn').addEventListener('click', () => { draftTrip = generateTrip(trip.prompt); renderDraft(); });
+  $('#reshuffle-btn').addEventListener('click', () => { draftTrip = generateTrip(trip.prompt, trip.scope); renderDraft(); });
   $('#save-trip-btn').addEventListener('click', saveDraft);
   wireWildcards();
   wireMapMarkers(box, trip, false);

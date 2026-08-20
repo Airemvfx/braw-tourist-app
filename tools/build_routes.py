@@ -20,7 +20,7 @@ README. Run after any change to the POI list:
     python3 build_routes.py
 """
 import heapq, json, math, os, re, time
-from build_terrain import Dem, clip_rect, project, rasterise, LON0, LON1, LAT0, LAT1
+from build_terrain import Dem, Cover, clip_rect, project, rasterise, LON0, LON1, LAT0, LAT1
 from raster import douglas_peucker, ring_area
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -58,6 +58,17 @@ def km_between(r1, c1, r2, c2):
 # A grid path is straighter than tarmac; calibrated against known legs
 # (Edinburgh-Stirling, Glasgow-Loch Lomond, Oban-Kilchurn, Dundee-St Andrews).
 KM_FACTOR = 1.18
+
+# Town driving is not rural driving. WorldCover's built-up class marks
+# the cells; without this a hop across Edinburgh came out at three
+# minutes, which would let a one-day city itinerary schedule about twice
+# what anybody could actually do.
+URBAN_KMH = 22.0
+
+# Every arrival costs something before the visit starts: finding a space,
+# paying, walking in, getting everyone out of the car. A leg is never
+# quicker than this however short it looks on the map.
+MIN_LEG_MIN = 8
 
 
 def speed_kmh(elev):
@@ -156,6 +167,19 @@ def main():
             cost[i] = max(0.0, samples[1])
     log('  done')
 
+    log('marking built-up cells…')
+    cov = Cover(HERE)
+    urban = bytearray(ROWS * COLS)
+    for r in range(ROWS):
+        for c in range(COLS):
+            i = r * COLS + c
+            if not land[i]:
+                continue
+            lon, lat = centre_of(r, c)
+            if cov.at(lon, lat) == 50:        # WorldCover: built-up
+                urban[i] = 1
+    log(f'  {sum(urban):,} built-up cells')
+
     # ---- graph search ----------------------------------------------
     NB = [(-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (-1, 1), (1, -1), (1, 1)]
 
@@ -224,7 +248,7 @@ def main():
     # precompute per-cell traversal minutes for the 8 directions
     def edge_minutes(i, j):
         e = (cost[i] + cost[j]) / 2
-        v = speed_kmh(e)
+        v = URBAN_KMH if (urban[i] and urban[j]) else speed_kmh(e)
         ri, ci = divmod(i, COLS)
         rj, cj = divmod(j, COLS)
         km = km_between(ri, ci, rj, cj) * KM_FACTOR
@@ -287,7 +311,7 @@ def main():
             j = r * COLS + c
             ti = index[n2]
             if dist[j] < 1e17:
-                mins[si][ti] = round(dist[j])
+                mins[si][ti] = max(MIN_LEG_MIN, round(dist[j])) if si != ti else 0
                 kms[si][ti] = round(dkm[j])
                 ferry[si][ti] = dfr[j]
             else:
