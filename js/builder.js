@@ -10,13 +10,8 @@
 // ============================================================
 
 import { POI_BY_ID, INTERESTS, REGIONS, EQUIPMENT, ADVISORIES } from './data.js';
-import { distKm } from './planner.js';
+import { routeTotals, orderByTravel, leg } from './routing.js';
 
-// Road km per hour, averaged over the mix of motorway, A-road and
-// single-track that any Highland route ends up being.
-const KMH = 60;
-// Windiness factor: straight-line distance is a lie in Scotland.
-const ROAD_FACTOR = 1.3;
 // Hours of daylight-ish touring anyone sensibly does before dinner.
 const HOURS_PER_DAY = 8;
 
@@ -40,21 +35,9 @@ export function visitHours(poi) {
   return 2;
 }
 
-/** Nearest-neighbour ordering from a start point — same as the planner's. */
+/** Shortest-first by real travel time, ferries included. */
 export function optimiseOrder(start, pois) {
-  const remaining = [...pois];
-  const route = [];
-  let cursor = start;
-  while (remaining.length) {
-    let bi = 0, bd = Infinity;
-    remaining.forEach((p, i) => {
-      const d = distKm(cursor, p);
-      if (d < bd) { bd = d; bi = i; }
-    });
-    cursor = remaining.splice(bi, 1)[0];
-    route.push(cursor);
-  }
-  return route;
+  return orderByTravel(start, pois);
 }
 
 /**
@@ -63,12 +46,10 @@ export function optimiseOrder(start, pois) {
  * actually ask for, so the UI can flag an over-packed schedule.
  */
 export function routeStats(pois, start, days = 0) {
-  let straight = 0;
-  let cursor = start;
-  for (const p of pois) { straight += distKm(cursor, p); cursor = p; }
-
-  const km = Math.round(straight * ROAD_FACTOR);
-  const driveHours = km / KMH;
+  const totals = routeTotals(start, pois);
+  const km = totals.km;
+  // Real travel time, so a leg with a ferry on it costs what it costs.
+  const driveHours = totals.minutes / 60;
   const stopHours = pois.reduce((s, p) => s + visitHours(p), 0);
   const totalHours = driveHours + stopHours;
   const daysNeeded = Math.max(1, Math.ceil(totalHours / HOURS_PER_DAY));
@@ -84,6 +65,7 @@ export function routeStats(pois, start, days = 0) {
     daysNeeded,
     hoursPerDay: useDays ? totalHours / useDays : totalHours,
     xp: pois.reduce((s, p) => s + p.xp, 0),
+    ferries: totals.ferries,
   };
 }
 
@@ -175,6 +157,8 @@ export function buildCustomTrip({ ids, start, days }) {
     days: dayBlocks,
     distanceKm: stats.km,
     distanceMi: stats.mi,
+    driveMinutes: Math.round(stats.driveHours * 60),
+    ferries: stats.ferries,
     xpOnOffer: stats.xp,
     createdAt: Date.now(),
     visited: {},

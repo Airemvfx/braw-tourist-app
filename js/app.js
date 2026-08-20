@@ -9,12 +9,18 @@ import {
 } from './builder.js';
 import { store } from './store.js';
 import { initTheme, setMode, getMode, onThemeChange } from './theme.js';
+import { loadFonts } from './fonts.js';
 import { awardXP, evaluateAchievements, evaluateStamps, regionProgress, userStats, toastInfo, burstConfetti, setQuiet, activityText } from './gamification.js';
 import {
   generateTrip, tripProgress, tripStopIds, tripTitle, paceLabel, distKm,
   wildcardsFor, addStops,
 } from './planner.js';
 import { renderMap, mapKeyHTML } from './scotland-map.js';
+import { leg as travelLeg, ferriesFor, ferryInfo } from './routing.js';
+import {
+  downloadTripGPX, downloadTripGeoJSON, downloadBackup,
+  readBackup, backupSummary,
+} from './exporter.js';
 import { renderHero } from './hero-scene.js';
 import { renderShowcase, startShowcase, stopShowcase } from './showcase.js';
 import { loadPhotos, hasPhotos, mountBackdrop, mountCarousel, stopCarousel } from './photos-hero.js';
@@ -727,9 +733,10 @@ function renderBuildRoute() {
 
   let cursor = bdStart();
   host.innerHTML = pois.map((p, i) => {
-    const km = Math.round(distKm(cursor, p) * 1.3);
+    const t2 = travelLeg(cursor, p);
     cursor = p;
-    const leg = `<div class="bd-leg">↳ ${esc(bdDistance({ km, mi: Math.round(km * 0.621) }))} · ${esc(fmtDur(km / 60))}</div>`;
+    const boats = t2.ferries.map(f => `<span class="bd-ferry">⛴ ${esc(t('build.ferry'))}</span>`).join('');
+    const leg = `<div class="bd-leg">↳ ${esc(bdDistance({ km: t2.km, mi: Math.round(t2.km * 0.621) }))} · ${esc(fmtDur(t2.minutes / 60))}${boats}</div>`;
     return leg + `
       <div class="bd-row">
         <span class="sl-order">${i + 1}</span>
@@ -861,7 +868,10 @@ function renderBuildBrief() {
   const kit = equipmentFor(pois);
   const advisories = advisoriesFor(pois, s);
   const stamps = stampPreview(pois, user);
-  const params = { km: bdDistance(s), h: fmtH(s.hoursPerDay) };
+  const params = {
+    km: bdDistance(s), h: fmtH(s.hoursPerDay),
+    list: ferriesFor(bdStart(), pois).map(f => f.name).join(', '),
+  };
 
   host.innerHTML = `
     <section class="card bd-brief">
@@ -1027,6 +1037,8 @@ function closePoiPanel(scope = document) {
   scope.querySelectorAll('.map-marker').forEach(m => m.classList.remove('is-active'));
 }
 
+const ferryName = id => ferryInfo(id)?.name || '';
+
 function renderTripDetail() {
   const trip = user.trips.find(t2 => t2.id === openTripId) || user.trips[0];
   const host = $('#trip-detail');
@@ -1059,6 +1071,11 @@ function renderTripDetail() {
       </div>
     </header>
 
+    ${trip.ferries?.length ? `
+      <div class="ferry-banner">${esc(t('trip.ferryBanner', {
+        list: trip.ferries.map(id => ferryName(id)).filter(Boolean).join(', '),
+      }))}</div>` : ''}
+
     ${trip.completedAt ? `
       <div class="complete-banner">${t('trip.completeBanner', { xp: XP_EVENTS.COMPLETE_TRIP })}</div>
     ` : next ? `
@@ -1076,9 +1093,24 @@ function renderTripDetail() {
     <div class="map-stage">${renderMap(stops, trip.start)}</div>
     ${mapKeyHTML()}
 
+    <div class="trip-export">
+      <button type="button" class="btn btn-ghost btn-sm" id="dl-gpx"
+              title="${esc(t('data.gpxHint'))}">${t('data.gpx')}</button>
+      <button type="button" class="btn btn-ghost btn-sm" id="dl-geojson"
+              title="${esc(t('data.geojsonHint'))}">${t('data.geojson')}</button>
+    </div>
+
     <div class="stop-list">${stopListHTML(trip, true)}</div>`;
 
   $('#back-to-trips').addEventListener('click', () => switchView('trips'));
+  $('#dl-gpx').addEventListener('click', () => {
+    downloadTripGPX(trip);
+    toastInfo(t('data.exported', { name: 'GPX' }), '🧭');
+  });
+  $('#dl-geojson').addEventListener('click', () => {
+    downloadTripGeoJSON(trip);
+    toastInfo(t('data.exported', { name: 'GeoJSON' }), '🗺️');
+  });
   wireMapMarkers(host);
   wireStopList(host, trip);
   hydratePhotos(host);
@@ -1484,6 +1516,17 @@ function renderProfile() {
         <div class="stat card"><span class="stat-icon">${icon}</span><span class="stat-n">${n}</span><span class="stat-label">${esc(t(key))}</span></div>`).join('')}
     </div>
 
+    <section class="card data-card">
+      <h3>${t('data.title')}</h3>
+      <p class="data-sub">${t('data.sub')}</p>
+      <p class="data-warn">${esc(t('data.warn'))}</p>
+      <div class="data-actions">
+        <button class="btn btn-primary btn-sm" id="dl-backup">${t('data.backup')}</button>
+        <button class="btn btn-ghost btn-sm" id="do-restore">${t('data.restore')}</button>
+      </div>
+      <input type="file" id="restore-input" accept="application/json,.json" hidden>
+    </section>
+
     <div class="card activity-card">
       <h3>${t('profile.activity')}</h3>
       ${user.activity.length ? user.activity.slice(0, 8).map(a => `
@@ -1496,6 +1539,52 @@ function renderProfile() {
     </div>`;
 
   $('#profile-logout').addEventListener('click', () => $('#logout-btn').click());
+  wireDataControls();
+}
+
+// ============================================================
+// Taking your data with you
+// ============================================================
+
+function wireDataControls() {
+  $('#dl-backup').addEventListener('click', async () => {
+    const data = await downloadBackup(user);
+    const n = Object.keys(data.photos || {}).length;
+    toastInfo(t('data.exported', { name: `${user.trips.length} quests, ${n} photos` }), '💾');
+  });
+
+  const input = $('#restore-input');
+  $('#do-restore').addEventListener('click', () => { input.value = ''; input.click(); });
+
+  input.addEventListener('change', async () => {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    try {
+      const data = readBackup(await file.text());
+      const them = backupSummary(data);
+      const mine = userStats(user);
+      const ok = confirm(t('data.confirm', {
+        name: them.name,
+        trips: user.trips.length, xp: formatNumber(user.xp),
+        theirTrips: them.trips, theirXp: formatNumber(them.xp),
+        date: new Date(them.exportedAt).toLocaleDateString(locale()),
+      }));
+      if (!ok) return;
+
+      user = store.restore(data.profile);
+      let photos = 0;
+      for (const [poiId, dataUrl] of Object.entries(data.photos || {})) {
+        try { await savePhoto(user.name, poiId, dataUrl); photos++; } catch { /* quota */ }
+      }
+      store.save();
+      toastInfo(t('data.restored', { trips: user.trips.length, photos }), '📥');
+      renderHeader();
+      switchView('trips');
+    } catch (err) {
+      const key = ['notJson', 'notBackup', 'tooNew'].includes(err.message) ? err.message : 'failed';
+      toastInfo(t(`data.err.${key}`), '⚠️');
+    }
+  });
 }
 
 function timeAgo(ts) {
@@ -1542,4 +1631,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) runPlanner();
   });
   boot();
+  // Webfonts last: they must never hold up the first screen.
+  requestAnimationFrame(() => loadFonts());
 });

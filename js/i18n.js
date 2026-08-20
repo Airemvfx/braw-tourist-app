@@ -26,6 +26,7 @@ const DEFAULT_LANG = 'en';
 
 const EN = {
   // ---- document ----
+  'a11y.skip': 'Skip to content',
   'doc.title': 'BRAW — Scottish Roadtrip Quests',
 
   // Experience-point unit, used wherever a bare number is suffixed.
@@ -33,7 +34,7 @@ const EN = {
 
   // ---- auth: brand panel ----
   'auth.eyebrow': 'Scotland · Est. Adventure',
-  'auth.tagline': 'Your personal Scottish expedition, <strong>intelligently charted</strong>.',
+  'auth.tagline': 'Your personal Scottish expedition, <strong>charted stop by stop</strong>.',
 
   // Landing features: a short label plus one clause. Scannable tiles,
   // not paragraphs — the artwork carries the atmosphere instead.
@@ -142,6 +143,7 @@ const EN = {
   'trip.none': 'No quest selected.',
   'trip.visitedRatio': '{done}/{total} visited',
   'trip.completeBanner': '🎉 Every stop conquered! +{xp} XP claimed. Scotland salutes you.',
+  'trip.ferryBanner': '⛴ This quest needs a crossing: {list}. Book ahead.',
   'trip.nextUp': 'NEXT UP',
   'trip.stopOf': '{region} · stop {n} of {total} · ✦ {xp} XP',
   'trip.day': 'DAY {n}',
@@ -232,6 +234,25 @@ const EN = {
   'photo.saved': 'Photo saved for {name}',
   'photo.failed': 'That image could not be read',
   'photo.close': 'Close',
+  // ---- taking your data with you ----
+  'data.title': 'Your data',
+  'data.sub': 'Everything lives in this browser and nowhere else. Keep a copy.',
+  'data.gpx': 'Route as GPX',
+  'data.gpxHint': 'Opens in a sat-nav, Garmin, OsmAnd or Komoot',
+  'data.geojson': 'Route as GeoJSON',
+  'data.geojsonHint': 'For Google Earth, QGIS and other map tools',
+  'data.backup': 'Download a backup',
+  'data.backupHint': 'Every quest, badge and photo in one file',
+  'data.restore': 'Restore from a backup',
+  'data.restoreHint': 'Replaces everything on this device',
+  'data.exported': 'Downloaded {name}',
+  'data.warn': 'Clearing your browser data erases your progress. There is no account to recover it from — the backup file is the only copy.',
+  'data.confirm': 'Restore {name}? This device currently has {trips} quests and {xp} XP, and that will be replaced by {theirTrips} quests and {theirXp} XP from {date}.',
+  'data.restored': 'Restored {trips} quests and {photos} photos.',
+  'data.err.notJson': 'That file is not readable JSON.',
+  'data.err.notBackup': 'That is not a BRAW backup file.',
+  'data.err.tooNew': 'That backup came from a newer version of BRAW.',
+  'data.err.failed': 'The restore failed and nothing was changed.',
   'profile.activity': 'Recent activity',
   'profile.activityEmpty': 'Nothing yet — go make some memories!',
 
@@ -313,6 +334,7 @@ const EN = {
   'build.stat.time': 'total time',
   'build.stat.xp': 'XP on offer',
   'build.hours': '{h} h',
+  'build.ferry': 'ferry',
   'build.mins': '{n} min',
   'build.perDay': '≈{h} h a day over {days} days · {drive} h driving, {stops} h at the stops',
   'build.overPacked': 'That is a long day — add a day or drop a stop.',
@@ -382,7 +404,7 @@ const EN = {
 
   // ---- builder: advisories ----
   'adv.ferry.name': 'Book the ferry',
-  'adv.ferry.body': 'Your journey includes islands. CalMac crossings sell out in summer — book the car space weeks ahead.',
+  'adv.ferry.body': 'This route crosses water: {list}. Crossings sell out in summer — book the car space weeks ahead, and note the last sailing back.',
   'adv.singletrack.name': 'Single-track roads',
   'adv.singletrack.body': 'Passing places are for passing and overtaking, not parking. Expect journeys to take longer than the map suggests.',
   'adv.munro.name': 'Check the mountain forecast',
@@ -487,13 +509,14 @@ const EN = {
 
 const PL = {
   // ---- document ----
+  'a11y.skip': 'Przejdź do treści',
   'doc.title': 'BRAW — Szkockie wyprawy samochodowe',
 
   'unit.xp': 'PD',
 
   // ---- auth: brand panel ----
   'auth.eyebrow': 'Szkocja · Przygoda od zawsze',
-  'auth.tagline': 'Twoja osobista szkocka wyprawa, <strong>inteligentnie zaplanowana</strong>.',
+  'auth.tagline': 'Twoja osobista szkocka wyprawa, <strong>zaplanowana przystanek po przystanku</strong>.',
 
   'auth.feat.route.t': 'Plan w jednym zdaniu',
   'auth.feat.route.b': 'Jedno zdanie to gotowa trasa',
@@ -600,6 +623,7 @@ const PL = {
   'trip.none': 'Nie wybrano wyprawy.',
   'trip.visitedRatio': '{done}/{total} odwiedzonych',
   'trip.completeBanner': '🎉 Wszystkie przystanki zdobyte! +{xp} PD odebrane. Szkocja Ci salutuje.',
+  'trip.ferryBanner': '⛴ Ta wyprawa wymaga przeprawy: {list}. Zarezerwuj z wyprzedzeniem.',
   'trip.nextUp': 'NASTĘPNY CEL',
   'trip.stopOf': '{region} · przystanek {n} z {total} · ✦ {xp} PD',
   'trip.day': 'DZIEŃ {n}',
@@ -690,6 +714,25 @@ const PL = {
   'photo.saved': 'Zapisano zdjęcie: {name}',
   'photo.failed': 'Nie udało się odczytać tego obrazu',
   'photo.close': 'Zamknij',
+  // ---- zabierz swoje dane ----
+  'data.title': 'Twoje dane',
+  'data.sub': 'Wszystko jest w tej przeglądarce i nigdzie indziej. Zachowaj kopię.',
+  'data.gpx': 'Trasa jako GPX',
+  'data.gpxHint': 'Otworzy się w nawigacji, Garminie, OsmAnd lub Komoot',
+  'data.geojson': 'Trasa jako GeoJSON',
+  'data.geojsonHint': 'Do Google Earth, QGIS i innych narzędzi map',
+  'data.backup': 'Pobierz kopię zapasową',
+  'data.backupHint': 'Wszystkie wyprawy, odznaki i zdjęcia w jednym pliku',
+  'data.restore': 'Przywróć z kopii',
+  'data.restoreHint': 'Zastąpi wszystko na tym urządzeniu',
+  'data.exported': 'Pobrano {name}',
+  'data.warn': 'Wyczyszczenie danych przeglądarki skasuje Twoje postępy. Nie ma konta, z którego można je odzyskać — plik kopii to jedyny egzemplarz.',
+  'data.confirm': 'Przywrócić {name}? To urządzenie ma teraz {trips} wypraw i {xp} PD, co zostanie zastąpione przez {theirTrips} wypraw i {theirXp} PD z {date}.',
+  'data.restored': 'Przywrócono {trips} wypraw i {photos} zdjęć.',
+  'data.err.notJson': 'Tego pliku nie da się odczytać jako JSON.',
+  'data.err.notBackup': 'To nie jest plik kopii zapasowej BRAW.',
+  'data.err.tooNew': 'Ta kopia pochodzi z nowszej wersji BRAW.',
+  'data.err.failed': 'Przywracanie nie powiodło się, nic nie zostało zmienione.',
   'profile.activity': 'Ostatnia aktywność',
   'profile.activityEmpty': 'Jeszcze nic tu nie ma — czas na wspomnienia!',
 
@@ -770,6 +813,7 @@ const PL = {
   'build.stat.time': 'łączny czas',
   'build.stat.xp': 'PD do zdobycia',
   'build.hours': '{h} godz.',
+  'build.ferry': 'prom',
   'build.mins': '{n} min',
   'build.perDay': '≈{h} godz. dziennie przez {days} dni · {drive} godz. jazdy, {stops} godz. na przystankach',
   'build.overPacked': 'To bardzo długi dzień — dodaj dzień albo usuń przystanek.',
@@ -839,7 +883,7 @@ const PL = {
 
   // ---- kreator: ostrzeżenia ----
   'adv.ferry.name': 'Zarezerwuj prom',
-  'adv.ferry.body': 'Trasa obejmuje wyspy. Rejsy CalMac wyprzedają się latem — miejsce dla auta rezerwuj z tygodniowym wyprzedzeniem.',
+  'adv.ferry.body': 'Ta trasa przecina wodę: {list}. Rejsy wyprzedają się latem — miejsce dla auta rezerwuj z wyprzedzeniem i sprawdź ostatni powrót.',
   'adv.singletrack.name': 'Drogi jednopasmowe',
   'adv.singletrack.body': 'Mijanki służą do mijania i wyprzedzania, nie do parkowania. Przejazdy potrwają dłużej, niż sugeruje mapa.',
   'adv.munro.name': 'Sprawdź prognozę górską',

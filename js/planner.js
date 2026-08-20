@@ -9,6 +9,7 @@
 
 import { POIS, POI_BY_ID, INTERESTS, START_CITIES, REGION_HINTS } from './data.js';
 import { t as translate } from './i18n.js';
+import { routeTotals, orderByTravel } from './routing.js';
 
 const KM_PER_DEG = 111;
 
@@ -88,20 +89,13 @@ function scorePoi(poi, req) {
   return score;
 }
 
+/**
+ * Order by real travel time, not by crow-flies distance. On a route with
+ * an island this is the difference between visiting it once and hopping
+ * back and forth across the water because the far shore looked close.
+ */
 function nearestNeighbourRoute(start, pois) {
-  const remaining = [...pois];
-  const route = [];
-  let cursor = start;
-  while (remaining.length) {
-    let bi = 0, bd = Infinity;
-    remaining.forEach((p, i) => {
-      const d = distKm(cursor, p);
-      if (d < bd) { bd = d; bi = i; }
-    });
-    cursor = remaining.splice(bi, 1)[0];
-    route.push(cursor);
-  }
-  return route;
+  return orderByTravel(start, pois);
 }
 
 /**
@@ -178,12 +172,12 @@ function summarise(trip, route, dayCount) {
     const stops = route.slice(d * perDay, (d + 1) * perDay).map(p => p.id);
     if (stops.length) days.push({ day: days.length + 1, stops });
   }
-  let km = 0, cursor = trip.start;
-  for (const p of route) { km += distKm(cursor, p); cursor = p; }
-  km = Math.round(km * 1.3);                      // road windiness
+  const totals = routeTotals(trip.start, route);
   trip.days = days;
-  trip.distanceKm = km;
-  trip.distanceMi = Math.round(km * 0.621);
+  trip.distanceKm = totals.km;
+  trip.distanceMi = Math.round(totals.km * 0.621);
+  trip.driveMinutes = totals.minutes;
+  trip.ferries = totals.ferries;                  // crossings that need booking
   trip.xpOnOffer = route.reduce((s, p) => s + p.xp, 0);
   return trip;
 }

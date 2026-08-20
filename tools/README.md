@@ -45,3 +45,44 @@ Download these next to the scripts first (about 150 MB, none of it shipped):
   the app footer (`foot.data`); do not drop it.
 * AWS Terrain Tiles (SRTM/ETOPO1) — public domain.
 * Natural Earth — public domain.
+
+---
+
+# Travel matrix (`build_routes.py`)
+
+Regenerates `js/road-graph.js` — how far and how long between every pair
+of locations, and which pairs need a boat.
+
+```
+python3 build_routes.py
+```
+
+Uses the same downloads as the terrain build, plus nothing else. Run it
+after adding, moving or removing a location, or the new one falls back to
+a straight-line guess.
+
+## How it works, and how wrong it is
+
+A cost surface over the real land mask and real elevation, searched with
+Dijkstra on ~1.2 km cells. Ferries are explicit graph edges; the Skye
+Bridge and Queensferry Crossing are patched in because the strait at Kyle
+of Lochalsh is about 500 m wide, narrower than one cell, and without them
+the search sends everyone to Skye by ferry.
+
+Measured against known journeys: **median error 11% on distance, 17% on
+time**. That is good enough to plan around and not good enough to
+navigate by, which is why the app also exports GPX.
+
+Two known weaknesses, both from the same root — terrain cannot tell a
+glen with an A-road from a glen with a footpath:
+
+* Legs between Glencoe and the Fort William area come out short. The
+  search finds the Lairig Mòr, which carries the West Highland Way and no
+  tarmac.
+* A gradient penalty fixes that and was tried. It is not in the build,
+  because a ferry pays no gradient cost, so boats started winning routes
+  they should lose: spurious crossings went from 290 pairs to 714. A
+  false "you need a ferry" is the exact error this file exists to remove.
+
+Real road data (an OSM extract through OSRM or Valhalla) is the fix for
+both. This gets the dangerous cases right without a routing server.

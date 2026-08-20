@@ -15,10 +15,16 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏴󠁧󠁢󠁳󠁣󠁴󠁿</text></svg>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garant:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Outfit:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <!-- The webfonts are attached by js/fonts.js once the app has painted.
+       They are deliberately NOT linked here: as a <link>, even one marked
+       media="print", Chromium holds the module scripts until it settles,
+       and on a network that cannot reach Google that was 12.7 s of blank
+       screen. The fallback stacks in style.css carry the page meanwhile. -->
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+  <a class="skip-link" href="#app-main" data-i18n="a11y.skip">Skip to content</a>
+
   <!-- Owner's photography, when images/manifest.json lists any -->
   <div class="ph-backdrop" id="ph-backdrop" aria-hidden="true" hidden></div>
 
@@ -34,7 +40,7 @@
           <div class="brand-eyebrow" data-i18n="auth.eyebrow">Scotland · Est. Adventure</div>
           <div class="wordmark">BRAW<span class="wordmark-dot">.</span></div>
           <div class="brand-rule" aria-hidden="true"></div>
-          <p class="brand-tag" data-i18n-html="auth.tagline">Your personal Scottish expedition, <strong>intelligently charted</strong>.</p>
+          <p class="brand-tag" data-i18n-html="auth.tagline">Your personal Scottish expedition, <strong>charted stop by stop</strong>.</p>
 
           <!-- Counts are filled from the dataset so they can never drift -->
           <ul class="brand-stats">
@@ -168,7 +174,7 @@
     </header>
     <div class="scope-banner" aria-hidden="true"></div>
 
-    <main class="app-main">
+    <main class="app-main" id="app-main" tabindex="-1">
 
       <!-- New quest -->
       <section id="view-plan" hidden>

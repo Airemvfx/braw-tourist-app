@@ -99,4 +99,23 @@ export const store = {
   logout() { localStorage.removeItem(SESSION_KEY); },
 
   save() { persistUsers(this.users); },
+
+  /**
+   * Overwrite the signed-in profile from a backup, keeping the existing
+   * password so the account still opens with the credentials the person
+   * already knows. Everything else is replaced wholesale — a restore is
+   * a restore, not a merge, because merging two divergent XP histories
+   * would produce a state neither device ever had.
+   */
+  restore(profile) {
+    const key = this.sessionName;
+    const existing = key && this.users[key];
+    if (!existing) throw authError('auth.err.noUser');
+    const passHash = existing.passHash;
+    this.users[key] = normalise({
+      ...existing, ...profile, name: existing.name, passHash,
+    });
+    persistUsers(this.users);
+    return this.users[key];
+  },
 };

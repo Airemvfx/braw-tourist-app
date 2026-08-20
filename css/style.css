@@ -5,7 +5,12 @@
    Commercial-grade, editorial outdoor brand aesthetic.
    ============================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garant:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Outfit:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+/* The families are requested from index.html, without blocking paint.
+   There used to be an @import for them here as well — a second copy of
+   the same request, and a fully render-blocking one: nothing in this
+   stylesheet applied until it resolved. On a network that cannot reach
+   Google that was 12.7 s of blank screen, and no amount of tuning the
+   <link> in the HTML could have helped while this line existed. */
 
 :root {
   /* Surfaces */
@@ -2358,3 +2363,40 @@ small { font-size: 0.78em; }
 }
 .wc-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 .wc-actions .btn { flex: 1 1 auto; justify-content: center; }
+
+/* A crossing is the one thing on an itinerary that must be booked before
+   you leave, so it gets said at the top rather than buried in advisories. */
+.ferry-banner {
+  margin: 0.6rem 0 0.9rem; padding: 0.7rem 0.9rem;
+  background: var(--sage-pale); border: 1px solid var(--sage);
+  border-radius: 10px; font-size: 0.85rem; color: var(--text); line-height: 1.5;
+}
+.bd-ferry {
+  margin-left: 0.5rem; padding: 0.05rem 0.35rem; border-radius: 3px;
+  background: var(--sage-pale); color: var(--sage);
+  font-size: 0.58rem; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 600;
+}
+
+/* ---- getting your data out ---- */
+.trip-export { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1.2rem; }
+.data-card { display: grid; gap: 0.55rem; }
+.data-sub { font-size: 0.85rem; color: var(--text-dim); }
+.data-warn {
+  font-size: 0.8rem; color: var(--text-dim); line-height: 1.5;
+  padding: 0.65rem 0.8rem; border-left: 3px solid var(--rose);
+  background: var(--inset-1); border-radius: 0 8px 8px 0;
+}
+.data-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.2rem; }
+.data-actions .btn { flex: 1 1 auto; justify-content: center; }
+
+/* Keyboard users should not have to tab through the whole nav to reach
+   the page. Visible only when focused. */
+.skip-link {
+  position: absolute; left: 0.5rem; top: -4rem; z-index: 200;
+  padding: 0.6rem 1rem; border-radius: 0 0 8px 8px;
+  background: var(--amber); color: var(--on-amber);
+  font-family: var(--font-ui); font-weight: 600; font-size: 0.9rem;
+  text-decoration: none; transition: top 0.18s var(--ease-out);
+}
+.skip-link:focus { top: 0; }
+.app-main:focus { outline: none; }
