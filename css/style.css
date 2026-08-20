@@ -829,9 +829,15 @@ small { font-size: 0.78em; }
 /* Route drawn twice: a faint full line, plus a bright segment that runs
    along it. pathLength="100" normalises the dash maths, so the trim reads
    the same whether the route is 90 miles or 900. */
+/* The full route, dashed and never animated: the whole journey at a
+   glance, under the sweep that shows direction. It used to sit at 0.35
+   over a flat green fill; against the real terrain — contours, coast and
+   land cover all in the same amber-to-green family — it read as texture
+   rather than as a road. Weight and rhythm raised until it is
+   unmistakably a route in both themes. */
 .map-route {
-  stroke: var(--amber); stroke-width: 1.6;
-  stroke-dasharray: 4 6; stroke-linecap: round; opacity: 0.35;
+  stroke: var(--amber); stroke-width: 2.2;
+  stroke-dasharray: 9 7; stroke-linecap: round; opacity: 0.7;
 }
 .map-route-trim {
   stroke: var(--amber-light); stroke-width: 2.6;
@@ -1543,6 +1549,13 @@ small { font-size: 0.78em; }
 
 @media (prefers-reduced-motion: reduce) {
   .ph-slide { transition: none; }
+}
+
+/* With animation off the trim would otherwise freeze as a stranded 14%
+   stub of the route. Show the whole line instead — the dashed underlay
+   still carries the full path beneath it. */
+@media (prefers-reduced-motion: reduce) {
+  .map-route-trim { stroke-dasharray: none; opacity: 0.85; }
 }
 
 /* ============================================================
