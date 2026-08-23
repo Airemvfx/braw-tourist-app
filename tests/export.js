@@ -82,6 +82,81 @@ const { chromium } = require('/opt/node22/lib/node_modules/playwright');
     toast: document.querySelector('.toast')?.textContent.trim() || '(none)',
   })).then(JSON.stringify));
 
+  // ------------------------------------------------------------------
+  // Photographs must survive a backup and restore at full print size.
+  //
+  // This is the path that matters most: a cleared browser is meant to
+  // cost nothing, and a restore that quietly brought photographs back as
+  // thumbnails would look like it worked while making every one of them
+  // useless for the calendar they were taken for.
+  // ------------------------------------------------------------------
+  console.log('\n-- photographs through a backup --');
+  const before = await p.evaluate(async () => {
+    const photos = await import('/js/photos.js');
+    const owner = localStorage.getItem('braw_session_v1');
+    const c = document.createElement('canvas');
+    c.width = 2400; c.height = 1800;
+    const x = c.getContext('2d');
+    for (let i = 0; i < 150; i++) {
+      x.fillStyle = 'hsl(' + (i * 13 % 360) + ',60%,45%)';
+      x.fillRect((i * 61) % 2400, (i * 37) % 1800, 300, 300);
+    }
+    const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.85));
+    const rec = await photos.addPhoto(owner, { tripId: 'trip-x', poiId: 'iona' },
+      new File([blob], 'a.jpg', { type: 'image/jpeg' }));
+    return { id: rec.id, w: rec.w, count: (await photos.allPhotos(owner)).length };
+  });
+  console.log('stored one photograph at', before.w + 'px');
+
+  const [dl2] = await Promise.all([p.waitForEvent('download'), p.locator('#dl-backup').click()]);
+  await dl2.saveAs('/tmp/out-backup2.json');
+  const bk2 = JSON.parse(fs.readFileSync('/tmp/out-backup2.json', 'utf8'));
+  const inFile = (bk2.photos || []).find(x => x.id === before.id);
+  console.log('  photos in file:', (bk2.photos || []).length,
+    '| carries a print copy:', Boolean(inFile && inFile.full),
+    '| full is larger than thumb:', Boolean(inFile && inFile.full.length > inFile.thumb.length));
+
+  // Empty the local store, then restore from the file. Deleting the
+  // whole database would be closer to "cleared the browser", but
+  // deleteDatabase blocks while any connection is open and the app holds
+  // one for its lifetime — so it would hang here rather than test
+  // anything. Removing every record reaches the same starting point.
+  const wiped = await p.evaluate(async () => {
+    const photos = await import('/js/photos.js');
+    const owner = localStorage.getItem('braw_session_v1');
+    for (const rec of await photos.allPhotos(owner)) await photos.deletePhoto(rec.id);
+    return (await photos.allPhotos(owner)).length;
+  });
+  console.log('  photographs on the device after wiping:', wiped);
+
+  await p.evaluate(()=>document.querySelector('.nav-btn[data-view="profile"]').click());
+  await p.waitForTimeout(500);
+  await p.setInputFiles('#restore-input', '/tmp/out-backup2.json');
+  await p.waitForTimeout(3000);
+
+  const after = await p.evaluate(async () => {
+    const photos = await import('/js/photos.js');
+    const owner = localStorage.getItem('braw_session_v1');
+    const all = await photos.allPhotos(owner);
+    const one = all[0];
+    return {
+      count: all.length,
+      w: one?.w,
+      tripId: one?.tripId,
+      grade: one ? photos.printGrade(one, 297) : null,
+      owner: one?.owner === owner,
+    };
+  });
+  console.log('  after restoring:',
+    JSON.stringify({ recovered: after.count, px: after.w, journey: after.tripId,
+      printsAtA4: after.grade, filedToThisAccount: after.owner }));
+  if (after.count !== 1 || after.w !== before.w || after.grade !== 'good' || !after.owner) {
+    console.log('  !! a photograph did not come back intact');
+    process.exitCode = 1;
+  } else {
+    console.log('  the photograph came back at full print resolution, on its journey');
+  }
+
   console.log('\nERRORS:', errs.length?errs:'none');
   await b.close();
 })();

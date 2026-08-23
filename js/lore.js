@@ -104,7 +104,7 @@ export const LORE = [
     en: { t: 'A box canyon cut by meltwater',
           b: 'Corrieshalloch is around 60 metres deep and barely wider in places, carved in a geological instant by torrents draining the last ice sheet. The Victorian suspension bridge across it is deliberately limited to a handful of people at a time — it bounces.' },
     pl: { t: 'Kanion wycięty przez wody roztopowe',
-          b: 'Corrieshalloch ma około 60 metrów głębokości i miejscami niewiele więcej szerokości, wyżłobiony w geologicznej chwili przez potoki z topniejącego lądolodu. Wiktoriański most wiszący celowo dopuszcza tylko kilka osób naraz — bujа się.' } },
+          b: 'Corrieshalloch ma około 60 metrów głębokości i miejscami niewiele więcej szerokości, wyżłobiony w geologicznej chwili przez potoki z topniejącego lądolodu. Wiktoriański most wiszący celowo dopuszcza tylko kilka osób naraz — buja się.' } },
 
   { id: 'arthurs-seat-volcano', type: 'fact', poi: 'arthurs-seat', unlock: null,
     en: { t: 'An extinct volcano in the middle of a capital city',

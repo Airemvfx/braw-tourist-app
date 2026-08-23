@@ -32,7 +32,23 @@ import { loadPhotos, hasPhotos, mountBackdrop, mountCarousel, stopCarousel } fro
 import { nextQuestion, gameXPFor, recordRun, answerName } from './minigame.js';
 import { LORE, LORE_TYPES, loreForPoi, isUnlocked, loreProgress } from './lore.js';
 import { seasonalNow, seasonalNext, monthName } from './seasons.js';
-import { compressImage, savePhoto, getPhoto, deletePhoto, listPhotoIds } from './photos.js';
+import {
+  addPhoto, getPhoto, deletePhoto, allPhotos, photosForTrip, coverFor,
+  photoCount as countPhotos, putPhotoRecord, reassign, printGrade, printDpi,
+} from './photos.js';
+import {
+  storageHealth, requestPersistence, hasAskedForPersistence, exportPhotoFiles,
+  formatBytes, shouldSuggestBackup, markBackupSuggested, DURABILITY,
+} from './vault.js';
+import {
+  cloudAvailable, cloudSignedIn, cloudUser, account, pullProfile, pushProfile,
+  schedulePush, flushPush, uploadPhoto, uploadAll, removeRemotePhoto,
+  products as cloudProducts, placeOrder, myOrders, checkoutUrl, storeConfigured,
+} from './cloud.js';
+import {
+  CATALOGUE, mergeRemote, productName, productBlurb, priceText,
+  monthsFor, calendarSlots, printReport, orderItems,
+} from './shop.js';
 import {
   t, getLang, setLang, onLangChange, applyStatic, LANGS,
   poiName, poiBlurb, regionName, poiTime, cityName,
@@ -44,6 +60,11 @@ let user = null;          // current logged-in profile
 let draftTrip = null;     // generated but not yet saved
 let openTripId = null;    // trip shown in detail view
 let currentView = 'plan'; // view to restore after a language switch
+
+// Set when someone with local progress goes to make a real account, so
+// that when they come back signed in their trips and photographs follow
+// them up instead of appearing to have been thrown away.
+let pendingLocalKey = null;
 
 const $ = sel => document.querySelector(sel);
 const $$ = sel => [...document.querySelectorAll(sel)];
@@ -124,6 +145,44 @@ function syncAuthSubmit() {
   const btn = $('#auth-submit');
   btn.dataset.i18n = mode === 'login' ? 'auth.submit.loginArrow' : 'auth.submit.registerArrow';
   btn.textContent = t(btn.dataset.i18n);
+
+  // With a backend configured, an account is an email and a password —
+  // that is what makes it reachable from a second device and what a
+  // password reset needs. Without one, nothing has changed: a name and
+  // a password kept in this browser, which is all the demo requires.
+  const cloud = cloudAvailable();
+  const emailField = $('#auth-email-field');
+  const nameInput = $('#auth-name');
+
+  emailField.hidden = !cloud;
+  $('#auth-email').required = cloud;
+
+  // On a cloud sign-in the name is not an identifier, so asking for it
+  // would be asking for something we cannot check.
+  const nameField = nameInput.closest('.field');
+  const nameWanted = !cloud || mode === 'register';
+  nameField.hidden = !nameWanted;
+  nameInput.required = nameWanted;
+
+  $('#auth-pass').autocomplete = mode === 'login' ? 'current-password' : 'new-password';
+  $('#auth-forgot').hidden = !(cloud && mode === 'login');
+
+  const note = $('#auth-carry');
+  if (cloud && mode === 'register' && pendingLocalKey) {
+    note.hidden = false;
+    note.textContent = t('auth.willCarryOver');
+  } else {
+    note.hidden = true;
+  }
+
+  // The standing promise under the form — "nothing leaves this device" —
+  // stops being true the moment there is an account server, and a
+  // privacy claim that has quietly gone stale is worse than none.
+  const standing = document.querySelector('p.auth-note[data-i18n]');
+  if (standing) {
+    standing.dataset.i18n = cloud ? 'auth.noteCloud' : 'auth.note';
+    standing.textContent = t(standing.dataset.i18n);
+  }
 }
 
 // ============================================================
@@ -144,19 +203,34 @@ function wireAuth() {
     e.preventDefault();
     const name = $('#auth-name').value;
     const pass = $('#auth-pass').value;
+    const email = $('#auth-email').value;
     const mode = $('#auth-form').dataset.mode;
+    const submit = $('#auth-submit');
     $('#auth-error').textContent = '';
+    submit.disabled = true;
     try {
-      if (mode === 'login') {
-        user = await store.login(name, pass);
-        toastInfo(t('act.welcomeBack', { name: user.name }), '🏴󠁧󠁢󠁳󠁣󠁴󠁿');
-      } else {
-        user = await store.register(name, pass);
-        awardXP(user, XP_EVENTS.JOIN, 'act.joined', null, '🏴󠁧󠁢󠁳󠁣󠁴󠁿');
-      }
+      if (cloudAvailable()) await cloudAuth(mode, email, pass, name);
+      else await localAuth(mode, name, pass);
       enterApp();
     } catch (err) {
       $('#auth-error').textContent = err.i18nKey ? t(err.i18nKey) : err.message;
+    } finally {
+      submit.disabled = false;
+    }
+  });
+
+  $('#auth-forgot').addEventListener('click', async () => {
+    const email = $('#auth-email').value.trim();
+    $('#auth-error').textContent = '';
+    if (!email) { $('#auth-error').textContent = t('auth.err.needEmail'); return; }
+    try {
+      await account.sendReset(email);
+      // Deliberately the same message whether or not the address is
+      // registered. Saying "no such account" would turn this box into a
+      // way of finding out who has one.
+      toastInfo(t('auth.resetSent'), '✉️');
+    } catch (err) {
+      $('#auth-error').textContent = err.i18nKey ? t(err.i18nKey) : t('cloud.err.failed');
     }
   });
 
@@ -176,6 +250,91 @@ function wireAuth() {
       name: user.name, level: lvl.level, title: levelTitle(lvl.level),
     }), '🎲');
   });
+}
+
+/**
+ * Keep the server's copy of the profile roughly current.
+ *
+ * Every local save schedules a push, debounced hard — saves happen on
+ * every visited stop and every XP award, and one request each would be
+ * both wasteful and a fast route to a rate limit. Anything still
+ * waiting is flushed when the tab goes away, which on a phone is the
+ * normal way an app is closed: `pagehide` and a hidden `visibilitychange`
+ * are the only events reliably delivered then, and `beforeunload` is
+ * not one of them on iOS.
+ */
+function wireSync() {
+  store.onSave(profile => { if (profile) schedulePush(profile); });
+
+  const flush = () => { flushPush(); };
+  window.addEventListener('pagehide', flush);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flush();
+  });
+}
+
+/** The original path: a name and a password, kept in this browser. */
+async function localAuth(mode, name, pass) {
+  if (mode === 'login') {
+    user = await store.login(name, pass);
+    toastInfo(t('act.welcomeBack', { name: user.name }), '🏴󠁧󠁢󠁳󠁣󠁴󠁿');
+  } else {
+    user = await store.register(name, pass);
+    awardXP(user, XP_EVENTS.JOIN, 'act.joined', null, '🏴󠁧󠁢󠁳󠁣󠁴󠁿');
+  }
+}
+
+/**
+ * A real account.
+ *
+ * Signing in pulls whatever the server holds. The local profile is
+ * adopted from it only when there is nothing here worth keeping;
+ * otherwise the two are put to the user, because this is exactly the
+ * moment where a silent overwrite costs someone a season of walking.
+ */
+async function cloudAuth(mode, email, pass, name) {
+  if (mode === 'register') {
+    const { needsConfirmation } = await account.signUp(email, pass, name);
+    if (needsConfirmation) {
+      const err = new Error('confirm');
+      err.i18nKey = 'auth.confirmSent';
+      throw err;
+    }
+    const me = cloudUser();
+    // Carry local progress up, if this person had any before signing up.
+    if (pendingLocalKey && store.users[pendingLocalKey]) {
+      user = store.promoteLocal(pendingLocalKey, me);
+      await reassign(pendingLocalKey, user.id);
+      pendingLocalKey = null;
+      toastInfo(t('account.carriedOver'), '📦');
+    } else {
+      user = store.openCloudProfile(me);
+      awardXP(user, XP_EVENTS.JOIN, 'act.joined', null, '🏴󠁧󠁢󠁳󠁣󠁴󠁿');
+    }
+    store.save();
+    await pushProfile(user).catch(() => { /* it will go up on the next save */ });
+    return;
+  }
+
+  await account.signIn(email, pass);
+  const me = cloudUser();
+  user = store.openCloudProfile(me);
+
+  let remote = null;
+  try { remote = await pullProfile(); }
+  catch { toastInfo(t('account.offlineSignIn'), '📴'); }
+
+  if (remote?.data) {
+    const localEmpty = !user.trips.length && !user.xp;
+    if (localEmpty) {
+      user = store.adoptRemote(remote.data);
+    } else if ((remote.data.trips || []).length !== user.trips.length || (remote.data.xp || 0) !== user.xp) {
+      await resolveConflict();
+      return;
+    }
+  }
+  store.save();
+  toastInfo(t('act.welcomeBack', { name: user.name }), '🏴󠁧󠁢󠁳󠁣󠁴󠁿');
 }
 
 /** Give the demo account a head start so every screen has life in it. */
@@ -215,13 +374,13 @@ function renderHeader() {
 // Navigation
 // ============================================================
 
-const VIEWS = ['plan', 'build', 'trips', 'trip', 'library', 'badges', 'play', 'leaderboard', 'safety', 'profile'];
+const VIEWS = ['plan', 'build', 'trips', 'trip', 'library', 'badges', 'play', 'leaderboard', 'store', 'safety', 'profile'];
 
 function switchView(name) {
   currentView = name;
   for (const v of VIEWS) $(`#view-${v}`).hidden = v !== name;
   $$('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.view === name));
-  const renderers = { plan: renderPlan, build: renderBuild, trips: renderTrips, trip: renderTripDetail, library: renderLibrary, safety: renderSafety, badges: renderBadges, play: renderGame, leaderboard: renderLeaderboard, profile: renderProfile };
+  const renderers = { plan: renderPlan, build: renderBuild, trips: renderTrips, trip: renderTripDetail, library: renderLibrary, safety: renderSafety, badges: renderBadges, play: renderGame, leaderboard: renderLeaderboard, store: renderStore, profile: renderProfile };
   renderers[name]?.();
   renderHeader();
   window.scrollTo({ top: 0 });
@@ -1449,61 +1608,121 @@ function wireStopList(scope, trip) {
 // Check-in photos
 // ============================================================
 
-let photoTarget = null;   // poiId awaiting a file from the shared picker
+// { poiId, tripId } awaiting a file from the shared picker. The journey
+// is captured at the moment the button is pressed, because that is what
+// files the photograph — two visits to the same glen are two pictures.
+let photoTarget = null;
 
 /** Paint any stored photos into the stops currently on screen. */
-async function hydratePhotos(scope) {
-  const ids = await listPhotoIds(user.name);
-  for (const id of ids) {
-    const slots = [...scope.querySelectorAll(`[data-photo-slot="${id}"]`)]
-      .filter(slot => !slot.querySelector('.stop-photo'));
-    if (!slots.length) continue;
-    const dataUrl = await getPhoto(user.name, id);
-    if (!dataUrl) continue;
-    slots.forEach(slot => attachThumb(slot, id, dataUrl));
+/**
+ * Fill in whatever photographs belong to the stops now on screen.
+ *
+ * Asks per visible location rather than reading the whole store, so an
+ * account with three hundred photographs does not decode all of them to
+ * put four thumbnails on a page.
+ */
+async function hydratePhotos(scope, trip = null) {
+  const tripId = (trip || user.trips.find(t2 => t2.id === openTripId))?.id || '';
+  const slots = [...scope.querySelectorAll('[data-photo-slot]')]
+    .filter(slot => !slot.querySelector('.stop-photo'));
+  const wanted = [...new Set(slots.map(s => s.dataset.photoSlot))];
+
+  for (const poiId of wanted) {
+    const record = await coverFor(user.id, tripId, poiId);
+    if (!record) continue;
+    slots.filter(s => s.dataset.photoSlot === poiId).forEach(slot => attachThumb(slot, record));
   }
 }
 
 /**
  * A location can be on screen twice — expanded in the list and open in
  * the panel above the map — so the thumbnail is filled per slot rather
- * than once per location.
+ * than once per location. The small rendition goes in the page; the
+ * print-resolution one is only decoded if the viewer is opened.
  */
-function attachThumb(slot, poiId, dataUrl) {
-  const poi = POI_BY_ID[poiId];
+function attachThumb(slot, record) {
+  const poi = POI_BY_ID[record.poiId];
   const label = t('photo.alt', { name: poiName(poi) });
   slot.innerHTML = '';
   const fig = document.createElement('button');
   fig.type = 'button';
   fig.className = 'stop-photo';
   fig.title = label;
-  fig.innerHTML = `<img src="${dataUrl}" alt="${esc(label)}">`;
-  fig.addEventListener('click', e => { e.stopPropagation(); openPhoto(poiId, dataUrl); });
+  fig.innerHTML = `<img src="${record.thumb}" alt="${esc(label)}" loading="lazy">`;
+  fig.addEventListener('click', e => { e.stopPropagation(); openPhoto(record); });
   slot.appendChild(fig);
 
   const host = slot.closest('.sl-body, .poi-panel');
-  const btn = host && host.querySelector(`[data-photo="${poiId}"]`);
+  const btn = host && host.querySelector(`[data-photo="${record.poiId}"]`);
   if (btn) { btn.classList.add('has-photo'); btn.title = t('photo.replace'); }
 }
 
-function openPhoto(poiId, dataUrl) {
-  const poi = POI_BY_ID[poiId];
-  $('#photo-viewer-img').src = dataUrl;
+function openPhoto(record) {
+  const poi = POI_BY_ID[record.poiId];
+  $('#photo-viewer-img').src = record.full || record.thumb;
   $('#photo-viewer-img').alt = t('photo.alt', { name: poiName(poi) });
+
+  const uploaded = Boolean(record.remote);
   $('#photo-caption').innerHTML =
-    `<span>${poi.icon} ${esc(poiName(poi))}</span>` +
-    `<button type="button" class="btn btn-danger btn-sm" id="photo-del">${t('photo.remove')}</button>`;
+    `<span>${poi.icon} ${esc(poiName(poi))}${uploaded ? ` <span class="ph-cloud" title="${esc(t('photo.uploaded'))}">☁︎</span>` : ''}</span>` +
+    `<span class="ph-tools">` +
+    (cloudSignedIn() && !uploaded
+      ? `<button type="button" class="btn btn-ghost btn-sm" id="photo-up">${t('photo.upload')}</button>` : '') +
+    `<button type="button" class="btn btn-danger btn-sm" id="photo-del">${t('photo.remove')}</button></span>`;
   $('#photo-viewer').hidden = false;
+
   $('#photo-del').addEventListener('click', async () => {
-    await deletePhoto(user.name, poiId);
+    if (!confirm(t('photo.removeConfirm'))) return;
+    await removeRemotePhoto(record);
+    await deletePhoto(record.id);
     closePhoto();
     renderTripDetail();
+  });
+
+  const up = $('#photo-up');
+  if (up) up.addEventListener('click', async () => {
+    up.disabled = true;
+    try {
+      await uploadPhoto(record);
+      toastInfo(t('photo.uploaded'), '☁️');
+      closePhoto();
+      renderTripDetail();
+    } catch (err) {
+      up.disabled = false;
+      toastInfo(err.i18nKey ? t(err.i18nKey) : t('cloud.err.failed'), '⚠️');
+    }
   });
 }
 
 function closePhoto() {
   $('#photo-viewer').hidden = true;
   $('#photo-viewer-img').src = '';
+}
+
+/**
+ * Housekeeping after a photograph is taken.
+ *
+ * The first one is the moment to ask the browser to keep our storage
+ * for good, because until there is something worth keeping the request
+ * is both meaningless and, in Firefox, a permission prompt out of
+ * nowhere. Chrome never prompts at all, so asking here costs nothing
+ * and quietly upgrades most users.
+ *
+ * Then, rarely, a reminder to take a copy off the device — see
+ * shouldSuggestBackup for how hard that is to trigger, and why.
+ */
+async function afterPhotoAdded() {
+  if (!hasAskedForPersistence()) {
+    try { await requestPersistence(); } catch { /* not fatal */ }
+  }
+  photoCount = await countPhotos(user.id);
+  try {
+    const health = await storageHealth(user.id);
+    if (shouldSuggestBackup(health)) {
+      markBackupSuggested();
+      toastInfo(t('vault.nag', { n: health.unbackedUp }), '💾');
+    }
+  } catch { /* the panel will say the same thing next time it is opened */ }
 }
 
 function wirePhotos() {
@@ -1513,7 +1732,10 @@ function wirePhotos() {
     const btn = e.target.closest('[data-photo]');
     if (!btn) return;
     e.stopPropagation();
-    photoTarget = btn.dataset.photo;
+    photoTarget = {
+      poiId: btn.dataset.photo,
+      tripId: user.trips.find(t2 => t2.id === openTripId)?.id || '',
+    };
     input.value = '';          // so re-picking the same file still fires change
     input.click();
   });
@@ -1521,16 +1743,19 @@ function wirePhotos() {
   input.addEventListener('change', async () => {
     const file = input.files && input.files[0];
     if (!file || !photoTarget) return;
-    const poiId = photoTarget;
+    const { poiId, tripId } = photoTarget;
     photoTarget = null;
     try {
-      const dataUrl = await compressImage(file);
-      await savePhoto(user.name, poiId, dataUrl);
+      const record = await addPhoto(user.id, { tripId, poiId }, file);
       document.querySelectorAll(`[data-photo-slot="${poiId}"]`)
-        .forEach(slot => attachThumb(slot, poiId, dataUrl));
+        .forEach(slot => attachThumb(slot, record));
       toastInfo(t('photo.saved', { name: poiName(POI_BY_ID[poiId]) }), '📸');
-    } catch {
-      toastInfo(t('photo.failed'), '⚠️');
+      afterPhotoAdded();
+    } catch (err) {
+      // A full disk is the one failure worth naming: it is fixable, and
+      // "could not save" would send someone hunting for the wrong thing.
+      const quota = err?.name === 'QuotaExceededError' || /quota/i.test(err?.message || '');
+      toastInfo(t(quota ? 'photo.failedSpace' : 'photo.failed'), '⚠️');
     }
   });
 
@@ -1894,16 +2119,317 @@ function renderSafety() {
 }
 
 // ============================================================
+// View: Store
+//
+// Everything sold here is made from photographs the user took, so the
+// shop is really a photo picker with prices attached. Two things it is
+// careful about:
+//
+//   * It never claims to have sold anything. Until a real shop is
+//     connected the flow ends with a reference and a plain statement
+//     that checkout is not live, because a fake "order placed" is a
+//     promise the app cannot keep.
+//   * It checks resolution before the order, not after the parcel.
+//     A photograph that will print soft is marked as such, with the
+//     actual dpi, so the choice is the user's and informed.
+// ============================================================
+
+let storeProducts = CATALOGUE;
+let storeProduct = null;      // product being built, or null at the catalogue
+let storeTripId = null;
+let storeSlots = [];
+let storeStartMonth = new Date().getMonth();
+let storePicking = -1;        // which slot the picker is filling
+
+function renderStore() {
+  // Confirm prices against the server when there is one, but never wait
+  // for it: the catalogue renders immediately from the built-in list.
+  if (cloudAvailable()) {
+    cloudProducts()
+      .then(rows => {
+        const merged = mergeRemote(rows);
+        if (JSON.stringify(merged) !== JSON.stringify(storeProducts)) {
+          storeProducts = merged;
+          if (currentView === 'store') renderStore();
+        }
+      })
+      .catch(() => { /* built-in prices stay on screen, flagged below */ });
+  }
+
+  $('#store-body').innerHTML = storeProduct ? builderHTML() : catalogueHTML();
+  if (storeProduct) wireStoreBuilder(); else wireStoreCatalogue();
+}
+
+function catalogueHTML() {
+  const unpriced = !cloudAvailable();
+  return `
+    ${storeConfigured() ? '' : `<div class="card store-notice">${esc(t('store.notLive'))}</div>`}
+    <div class="store-grid">
+      ${storeProducts.map(p => `
+        <article class="card store-item">
+          <div class="si-icon">${p.icon || '🎁'}</div>
+          <h3>${esc(productName(p))}</h3>
+          <p class="si-blurb">${esc(productBlurb(p))}</p>
+          <div class="si-foot">
+            <span class="si-price">${esc(priceText(p.pricePence, p.currency))}${unpriced ? '*' : ''}</span>
+            <button class="btn btn-primary btn-sm" data-build="${p.id}">${t('store.make')}</button>
+          </div>
+          <p class="si-photos">${esc(t('store.needsPhotos', { n: p.photoCount }))}</p>
+        </article>`).join('')}
+    </div>
+    ${unpriced ? `<p class="store-fineprint">${esc(t('store.priceUnconfirmed'))}</p>` : ''}
+    <div id="store-orders"></div>`;
+}
+
+function wireStoreCatalogue() {
+  $$('[data-build]').forEach(btn => btn.addEventListener('click', async () => {
+    const product = storeProducts.find(p => p.id === btn.dataset.build);
+    if (!product) return;
+    storeProduct = product;
+    storeTripId = user.trips[0]?.id || '';
+    await loadStoreSlots();
+    renderStore();
+  }));
+
+  if (cloudSignedIn()) {
+    myOrders()
+      .then(rows => {
+        if (!rows?.length || currentView !== 'store' || storeProduct) return;
+        $('#store-orders').innerHTML = `
+          <section class="card orders-card">
+            <h3>${t('store.yourOrders')}</h3>
+            ${rows.map(o => `
+              <div class="order-row">
+                <span class="order-ref">${esc(o.ref)}</span>
+                <span class="order-what">${esc(productName(storeProducts.find(p => p.id === o.product_id) || { name: o.kind }))}</span>
+                <span class="order-status status-${esc(o.status)}">${esc(t(`store.status.${o.status}`))}</span>
+                <span class="order-total">${esc(priceText(o.total_pence, o.currency))}</span>
+              </div>`).join('')}
+          </section>`;
+      })
+      .catch(() => { /* orders are a nicety; the shop works without them */ });
+  }
+}
+
+/** Photographs from the chosen journey, laid into the product's slots. */
+async function loadStoreSlots() {
+  const photos = storeTripId
+    ? await photosForTrip(user.id, storeTripId)
+    : await allPhotos(user.id);
+  storeSlots = calendarSlots(photos, storeProduct.photoCount);
+}
+
+function builderHTML() {
+  const product = storeProduct;
+  const isCalendar = product.kind === 'calendar';
+  const months = isCalendar ? monthsFor(storeStartMonth, new Date().getFullYear()) : null;
+  const report = printReport(storeSlots, product);
+
+  const slotHTML = storeSlots.map((p, i) => {
+    const label = isCalendar ? months[i].label : t('store.slot', { n: i + 1 });
+    if (!p) {
+      return `<button type="button" class="cal-slot empty" data-slot="${i}">
+        <span class="cs-month">${esc(label)}</span>
+        <span class="cs-add">＋</span>
+      </button>`;
+    }
+    const grade = printGrade(p, product.printWidthMm);
+    const dpi = printDpi(p, product.printWidthMm);
+    const poi = POI_BY_ID[p.poiId];
+    return `<button type="button" class="cal-slot grade-${grade}" data-slot="${i}">
+      <img src="${p.thumb}" alt="">
+      <span class="cs-month">${esc(label)}</span>
+      <span class="cs-where">${poi ? esc(poiName(poi)) : ''}</span>
+      ${grade === 'good' ? '' : `<span class="cs-grade">${esc(t(`shop.grade.${grade}`))}${dpi ? ` · ${dpi} dpi` : ''}</span>`}
+    </button>`;
+  }).join('');
+
+  const trips = user.trips;
+
+  return `
+    <div class="card builder-bar">
+      <button class="btn btn-ghost btn-sm" id="store-back">← ${t('store.backToShop')}</button>
+      <h2>${esc(productName(product))}</h2>
+      <span class="bb-price">${esc(priceText(product.pricePence, product.currency))}</span>
+    </div>
+
+    <div class="card builder-opts">
+      <label class="field">
+        <span>${t('store.fromTrip')}</span>
+        <select id="store-trip">
+          <option value="">${esc(t('store.allPhotos'))}</option>
+          ${trips.map(tr => `<option value="${tr.id}" ${tr.id === storeTripId ? 'selected' : ''}>${esc(tripTitle(tr))}</option>`).join('')}
+        </select>
+      </label>
+      ${product.kind === 'calendar' ? `
+      <label class="field">
+        <span>${t('store.startMonth')}</span>
+        <select id="store-start">
+          ${monthsFor(0, new Date().getFullYear()).map(m => `<option value="${m.month}" ${m.month === storeStartMonth ? 'selected' : ''}>${esc(m.label)}</option>`).join('')}
+        </select>
+      </label>` : ''}
+    </div>
+
+    <div class="cal-grid ${product.kind}">${slotHTML}</div>
+
+    <section class="card builder-foot">
+      <p class="bf-status">${esc(report.complete
+        ? t('store.ready', { n: report.needed })
+        : t('store.stillNeeded', { n: report.needed - report.filled }))}</p>
+      ${report.poor ? `<p class="bf-warn">${esc(t('store.warnPoor', { n: report.poor }))}</p>` : ''}
+      ${report.fair ? `<p class="bf-note">${esc(t('store.warnFair', { n: report.fair }))}</p>` : ''}
+      <button class="btn btn-primary" id="store-order" ${report.complete ? '' : 'disabled'}>
+        ${t('store.order')}
+      </button>
+      <p class="bf-fine">${esc(t(cloudSignedIn() ? 'store.orderNeedsUpload' : 'store.orderNeedsAccount'))}</p>
+    </section>
+
+    <div id="store-picker" class="picker" hidden></div>`;
+}
+
+function wireStoreBuilder() {
+  $('#store-back').addEventListener('click', () => {
+    storeProduct = null; storePicking = -1;
+    renderStore();
+  });
+
+  $('#store-trip').addEventListener('change', async e => {
+    storeTripId = e.target.value;
+    await loadStoreSlots();
+    renderStore();
+  });
+
+  const start = $('#store-start');
+  if (start) start.addEventListener('change', e => {
+    storeStartMonth = Number(e.target.value);
+    renderStore();
+  });
+
+  $$('[data-slot]').forEach(btn => btn.addEventListener('click', () => openSlotPicker(Number(btn.dataset.slot))));
+
+  $('#store-order').addEventListener('click', submitOrder);
+}
+
+/** Choose which photograph fills one slot. */
+async function openSlotPicker(index) {
+  storePicking = index;
+  const photos = storeTripId ? await photosForTrip(user.id, storeTripId) : await allPhotos(user.id);
+  const picker = $('#store-picker');
+
+  if (!photos.length) {
+    picker.hidden = false;
+    picker.innerHTML = `<div class="picker-inner card">
+      <p>${esc(t('store.noPhotos'))}</p>
+      <button class="btn btn-ghost btn-sm" id="picker-close">${t('common.close')}</button>
+    </div>`;
+    $('#picker-close').addEventListener('click', () => { picker.hidden = true; });
+    return;
+  }
+
+  picker.hidden = false;
+  picker.innerHTML = `<div class="picker-inner card">
+    <header class="picker-head">
+      <h3>${t('store.choosePhoto')}</h3>
+      <button class="btn btn-ghost btn-sm" id="picker-close">${t('common.close')}</button>
+    </header>
+    <div class="picker-grid">
+      ${photos.map(p => {
+        const poi = POI_BY_ID[p.poiId];
+        const grade = printGrade(p, storeProduct.printWidthMm);
+        return `<button type="button" class="pick grade-${grade}" data-pick="${p.id}">
+          <img src="${p.thumb}" alt="">
+          <span>${poi ? esc(poiName(poi)) : ''}</span>
+          ${grade === 'poor' ? `<span class="pick-warn">${esc(t('shop.grade.poor'))}</span>` : ''}
+        </button>`;
+      }).join('')}
+    </div>
+    ${storeSlots[index] ? `<button class="btn btn-danger btn-sm" id="picker-clear">${t('store.clearSlot')}</button>` : ''}
+  </div>`;
+
+  const close = () => { picker.hidden = true; storePicking = -1; };
+  $('#picker-close').addEventListener('click', close);
+  const clear = $('#picker-clear');
+  if (clear) clear.addEventListener('click', () => { storeSlots[index] = null; close(); renderStore(); });
+
+  $$('[data-pick]').forEach(btn => btn.addEventListener('click', () => {
+    storeSlots[index] = photos.find(p => p.id === btn.dataset.pick) || null;
+    close();
+    renderStore();
+  }));
+}
+
+/**
+ * Place the order.
+ *
+ * The photographs have to exist server-side first — create_order()
+ * refuses items it cannot find against the account, which is what stops
+ * an order referencing pictures nobody has. So the upload happens here,
+ * with the button reporting progress, and only then is the order made.
+ */
+async function submitOrder() {
+  const btn = $('#store-order');
+  const chosen = storeSlots.filter(Boolean);
+  if (!chosen.length) return;
+
+  if (!cloudSignedIn()) {
+    toastInfo(t('store.orderNeedsAccount'), 'ℹ️');
+    return;
+  }
+
+  btn.disabled = true;
+  const original = btn.textContent;
+  try {
+    const pending = [...new Map(chosen.filter(p => !p.remote).map(p => [p.id, p])).values()];
+    let done = 0;
+    for (const p of pending) {
+      btn.textContent = t('store.uploading', { done: ++done, total: pending.length });
+      const fresh = await getPhoto(p.id);
+      await uploadPhoto(fresh || p);
+    }
+
+    btn.textContent = t('store.placing');
+    const order = await placeOrder(storeProduct.id, orderItems(storeSlots));
+
+    const url = checkoutUrl(order);
+    if (url) {
+      // A new tab, not a redirect: the app holds unsaved builder state
+      // and navigating away from it would throw the work out.
+      window.open(url, '_blank', 'noopener');
+      toastInfo(t('store.handedOff', { ref: order.ref }), '🧾');
+    } else {
+      alert(t('store.savedNotLive', { ref: order.ref, total: priceText(order.total_pence, order.currency) }));
+    }
+    storeProduct = null;
+    renderStore();
+  } catch (err) {
+    toastInfo(err.i18nKey ? t(err.i18nKey) : t('cloud.err.failed'), '⚠️');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = original;
+  }
+}
+
+// ============================================================
 // View: Profile
 // ============================================================
 
 let photoCount = 0;
+let health = null;          // last storageHealth() result, for the vault card
 
 function renderProfile() {
   const s = userStats(user);
-  listPhotoIds(user.name).then(ids => {
-    if (ids.length !== photoCount) { photoCount = ids.length; if (currentView === 'profile') renderProfile(); }
+  // Both of these read IndexedDB, so the card is drawn from what was
+  // known last time and re-drawn if the answer has moved. Blocking the
+  // whole profile on a disk read would show an empty screen first.
+  countPhotos(user.id).then(n => {
+    if (n !== photoCount) { photoCount = n; if (currentView === 'profile') renderProfile(); }
   });
+  storageHealth(user.id).then(h => {
+    const changed = !health || h.risk !== health.risk || h.bytes !== health.bytes
+      || h.backedUp !== health.backedUp || h.durability !== health.durability;
+    health = h;
+    if (changed && currentView === 'profile') renderProfile();
+  }).catch(() => { /* the card falls back to its unknown state */ });
   const { level, into, need } = LEVELS.fromXP(user.xp);
 
   $('#profile-card').innerHTML = `
@@ -1935,10 +2461,13 @@ function renderProfile() {
         <div class="stat card"><span class="stat-icon">${icon}</span><span class="stat-n">${n}</span><span class="stat-label">${esc(t(key))}</span></div>`).join('')}
     </div>
 
+    ${accountCardHTML()}
+    ${vaultCardHTML()}
+
     <section class="card data-card">
       <h3>${t('data.title')}</h3>
       <p class="data-sub">${t('data.sub')}</p>
-      <p class="data-warn">${esc(t('data.warn'))}</p>
+      <p class="data-warn">${esc(t(cloudSignedIn() ? 'data.warnCloud' : 'data.warn'))}</p>
       <div class="data-actions">
         <button class="btn btn-primary btn-sm" id="dl-backup">${t('data.backup')}</button>
         <button class="btn btn-ghost btn-sm" id="do-restore">${t('data.restore')}</button>
@@ -1959,6 +2488,220 @@ function renderProfile() {
 
   $('#profile-logout').addEventListener('click', () => $('#logout-btn').click());
   wireDataControls();
+  wireVaultControls();
+  wireAccountControls();
+}
+
+// ============================================================
+// Where your photographs actually live
+//
+// The panel leads with the plain answer — are these pictures safe? —
+// and only then explains. It deliberately does not go green just
+// because the browser granted persistent storage: persistence stops
+// automatic eviction, it does not survive somebody tapping "clear
+// browsing data", and telling people their photographs are safe when
+// one wrong tap would delete them would be a lie with a cost.
+// ============================================================
+
+function vaultCardHTML() {
+  if (!health) return `<section class="card vault-card" id="vault-card"><h3>${t('vault.title')}</h3><p class="muted">${t('vault.checking')}</p></section>`;
+  if (health.photos === 0) {
+    return `<section class="card vault-card" id="vault-card">
+      <h3>${t('vault.title')}</h3>
+      <p class="muted">${t('vault.none')}</p>
+    </section>`;
+  }
+
+  const pct = health.quotaKnown ? Math.min(100, Math.round(health.fullness * 100)) : 0;
+  const rows = [];
+
+  rows.push([
+    health.durability === DURABILITY.PERSISTED ? '🔒' : '⚠️',
+    t(`vault.durability.${health.durability}`),
+  ]);
+  if (health.quotaKnown) {
+    rows.push(['💽', t('vault.usage', {
+      used: formatBytes(health.usage, formatNumber),
+      total: formatBytes(health.quota, formatNumber),
+      pct,
+    })]);
+  }
+  rows.push(['☁️', health.backedUp === health.photos
+    ? t('vault.copiedAll', { n: health.photos })
+    : t('vault.copiedSome', { n: health.backedUp, total: health.photos })]);
+  if (health.ios && !health.installed) rows.push(['📱', t('vault.ios')]);
+
+  return `<section class="card vault-card risk-${health.risk}" id="vault-card">
+    <h3>${t('vault.title')}</h3>
+    <p class="vault-verdict">${esc(t(`vault.risk.${health.risk}`))}</p>
+    <div class="vault-rows">
+      ${rows.map(([icon, text]) => `<div class="vault-row"><span>${icon}</span><span>${esc(text)}</span></div>`).join('')}
+    </div>
+    ${health.quotaKnown ? `<div class="progress slim"><div class="progress-fill" style="width:${pct}%"></div></div>` : ''}
+    <div class="data-actions">
+      <button class="btn btn-primary btn-sm" id="vault-export">${t('vault.saveFiles')}</button>
+      ${health.durability !== DURABILITY.PERSISTED && navigator.storage?.persist
+        ? `<button class="btn btn-ghost btn-sm" id="vault-persist">${t('vault.protect')}</button>` : ''}
+      ${cloudSignedIn() && health.unbackedUp
+        ? `<button class="btn btn-ghost btn-sm" id="vault-upload">${t('vault.uploadAll', { n: health.unbackedUp })}</button>` : ''}
+    </div>
+    <p class="vault-note">${esc(t('vault.note'))}</p>
+  </section>`;
+}
+
+/** braw-01-edinburgh-castle.jpg — sorted by journey, readable in a folder. */
+function photoFileName(record, index) {
+  const poi = POI_BY_ID[record.poiId];
+  const name = poi ? poiName(poi) : record.poiId;
+  const clean = String(name).toLowerCase().normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')   // drop accents, keep the letters
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '').slice(0, 40);
+  return `braw-${String(index + 1).padStart(3, '0')}-${clean || 'photo'}.jpg`;
+}
+
+function wireVaultControls() {
+  const exportBtn = $('#vault-export');
+  if (exportBtn) exportBtn.addEventListener('click', async () => {
+    exportBtn.disabled = true;
+    const original = exportBtn.textContent;
+    let i = 0;
+    try {
+      const res = await exportPhotoFiles(
+        user.id,
+        record => photoFileName(record, i++),
+        (done, total) => { exportBtn.textContent = t('vault.saving', { done, total }); },
+      );
+      if (res.method === 'cancelled') toastInfo(t('vault.cancelled'), '↩️');
+      else if (res.saved) toastInfo(t('vault.saved', { n: res.saved }), '💾');
+    } catch {
+      toastInfo(t('vault.saveFailed'), '⚠️');
+    } finally {
+      exportBtn.disabled = false;
+      exportBtn.textContent = original;
+      renderProfile();
+    }
+  });
+
+  const persistBtn = $('#vault-persist');
+  if (persistBtn) persistBtn.addEventListener('click', async () => {
+    const result = await requestPersistence();
+    health = await storageHealth(user.id);
+    toastInfo(t(result === DURABILITY.PERSISTED ? 'vault.protected' : 'vault.protectRefused'),
+      result === DURABILITY.PERSISTED ? '🔒' : 'ℹ️');
+    renderProfile();
+  });
+
+  const uploadBtn = $('#vault-upload');
+  if (uploadBtn) uploadBtn.addEventListener('click', async () => {
+    uploadBtn.disabled = true;
+    const original = uploadBtn.textContent;
+    try {
+      const res = await uploadAll(user.id, (done, total) => {
+        uploadBtn.textContent = t('vault.uploading', { done, total });
+      });
+      toastInfo(t('vault.uploaded', { n: res.uploaded }), '☁️');
+    } catch (err) {
+      toastInfo(err.i18nKey ? t(err.i18nKey) : t('cloud.err.failed'), '⚠️');
+    } finally {
+      uploadBtn.disabled = false;
+      uploadBtn.textContent = original;
+      health = await storageHealth(user.id);
+      renderProfile();
+    }
+  });
+}
+
+// ============================================================
+// The account card
+// ============================================================
+
+function accountCardHTML() {
+  if (!cloudAvailable()) {
+    return `<section class="card account-card" id="account-card">
+      <h3>${t('account.title')}</h3>
+      <p class="muted">${esc(t('account.localOnly'))}</p>
+    </section>`;
+  }
+
+  const me = cloudUser();
+  if (!me) {
+    return `<section class="card account-card" id="account-card">
+      <h3>${t('account.title')}</h3>
+      <p class="data-sub">${esc(t('account.signedOutBody'))}</p>
+      <div class="data-actions">
+        <button class="btn btn-primary btn-sm" id="account-link">${t('account.link')}</button>
+      </div>
+    </section>`;
+  }
+
+  return `<section class="card account-card" id="account-card">
+    <h3>${t('account.title')}</h3>
+    <p class="data-sub">${esc(t('account.signedInAs', { email: me.email || '' }))}</p>
+    <div class="data-actions">
+      <button class="btn btn-ghost btn-sm" id="account-sync">${t('account.syncNow')}</button>
+      <button class="btn btn-ghost btn-sm" id="account-signout">${t('account.signOutCloud')}</button>
+    </div>
+  </section>`;
+}
+
+function wireAccountControls() {
+  const link = $('#account-link');
+  if (link) link.addEventListener('click', () => {
+    // Signing out of the app entirely is the honest route to the cloud
+    // sign-in form: it is the same screen, and pretending otherwise
+    // would mean a second copy of it living in the profile view.
+    pendingLocalKey = user.id;
+    toastInfo(t('account.linkHint'), 'ℹ️');
+    $('#logout-btn').click();
+  });
+
+  const sync = $('#account-sync');
+  if (sync) sync.addEventListener('click', async () => {
+    sync.disabled = true;
+    try {
+      const res = await pushProfile(user);
+      if (res.ok) toastInfo(t('account.synced'), '☁️');
+      else if (res.conflict) await resolveConflict();
+      else toastInfo(t('cloud.err.failed'), '⚠️');
+    } catch (err) {
+      toastInfo(err.i18nKey ? t(err.i18nKey) : t('cloud.err.failed'), '⚠️');
+    } finally { sync.disabled = false; }
+  });
+
+  const out = $('#account-signout');
+  if (out) out.addEventListener('click', async () => {
+    await flushPush();
+    await account.signOut();
+    $('#logout-btn').click();
+  });
+}
+
+/**
+ * Two devices have both moved on. Ask; do not merge.
+ *
+ * Merging two XP histories produces a profile neither phone ever had —
+ * badges awarded for trips that are not there, counts that do not add
+ * up. Whichever the user picks is at least a state that really existed.
+ */
+async function resolveConflict() {
+  const remote = await pullProfile();
+  if (!remote?.data) return;
+  const mine = t('account.conflictMine', { trips: user.trips.length, xp: formatNumber(user.xp) });
+  const theirs = t('account.conflictTheirs', {
+    trips: (remote.data.trips || []).length, xp: formatNumber(remote.data.xp || 0),
+  });
+  const keepRemote = confirm(t('account.conflict', { mine, theirs }));
+  if (keepRemote) {
+    user = store.adoptRemote(remote.data);
+    store.save();
+    renderHeader();
+    switchView('trips');
+    toastInfo(t('account.tookRemote'), '☁️');
+  } else {
+    const res = await pushProfile(user);
+    toastInfo(t(res.ok ? 'account.keptMine' : 'cloud.err.failed'), res.ok ? '📱' : '⚠️');
+  }
 }
 
 // ============================================================
@@ -1968,8 +2711,12 @@ function renderProfile() {
 function wireDataControls() {
   $('#dl-backup').addEventListener('click', async () => {
     const data = await downloadBackup(user);
-    const n = Object.keys(data.photos || {}).length;
-    toastInfo(t('data.exported', { name: `${user.trips.length} quests, ${n} photos` }), '💾');
+    const n = (data.photos || []).length;
+    toastInfo(t('data.exported', { trips: user.trips.length, photos: n }), '💾');
+    // Above the size cap the print-resolution copies are left out, and
+    // saying so matters: the file looks complete either way, and the
+    // difference only shows up when a calendar is ordered from it.
+    if (data.truncated) toastInfo(t('data.truncated'), 'ℹ️');
   });
 
   const input = $('#restore-input');
@@ -1992,10 +2739,20 @@ function wireDataControls() {
 
       user = store.restore(data.profile);
       let photos = 0;
-      for (const [poiId, dataUrl] of Object.entries(data.photos || {})) {
-        try { await savePhoto(user.name, poiId, dataUrl); photos++; } catch { /* quota */ }
+      let dropped = 0;
+      for (const p of data.photos || []) {
+        try {
+          await putPhotoRecord({
+            ...p,
+            owner: user.id,
+            full: p.full || p.thumb,
+            remote: null,            // the copy is local again; re-upload if wanted
+          });
+          photos++;
+        } catch { dropped++; }       // out of room, most likely
       }
       store.save();
+      if (dropped) toastInfo(t('data.photosDropped', { n: dropped }), '⚠️');
       toastInfo(t('data.restored', { trips: user.trips.length, photos }), '📥');
       renderHeader();
       switchView('trips');
@@ -2055,6 +2812,8 @@ document.addEventListener('DOMContentLoaded', () => {
   wireLanguage();
   wireTheme();
   wireAuth();
+  syncAuthSubmit();   // decides which fields the sign-in form shows
+  wireSync();
   wireNav();
   wirePhotos();
   wireLocation();

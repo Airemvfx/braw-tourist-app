@@ -16,7 +16,7 @@
 import { POI_BY_ID } from './data.js';
 import { poiName, poiBlurb, regionName, cityName } from './i18n.js';
 import { tripStopIds, tripTitle } from './planner.js';
-import { listPhotoIds, getPhoto } from './photos.js';
+import { allPhotos } from './photos.js';
 
 const xml = s => String(s)
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -121,9 +121,26 @@ export function downloadTripGeoJSON(trip) {
 // Whole-profile backup
 // ------------------------------------------------------------------
 
-const BACKUP_VERSION = 1;
+const BACKUP_VERSION = 2;
 
-export async function buildBackup(user, { photos = true } = {}) {
+// Past this, a single JSON file stops being a sensible container: the
+// string has to be built whole in memory before it can be written, and
+// on a phone that is where the tab dies. Above the cap the backup keeps
+// the small copies and the user is pointed at the photo-file export,
+// which streams a folder instead.
+const MAX_INLINE_PHOTO_BYTES = 250 * 1024 * 1024;
+
+/**
+ * `photos` may be:
+ *   'full'   — everything, print-resolution included (the default)
+ *   'thumbs' — small copies only, for a file you can email
+ *   'none'   — profile only
+ *
+ * 'full' is the default because the whole point of this file is that a
+ * cleared browser should cost nothing, and a restore that quietly
+ * downgraded every photograph to a thumbnail would cost the calendar.
+ */
+export async function buildBackup(user, { photos = 'full' } = {}) {
   const data = {
     format: 'braw-backup',
     version: BACKUP_VERSION,
@@ -137,22 +154,37 @@ export async function buildBackup(user, { photos = true } = {}) {
       activity: user.activity,
       stamps: user.stamps,
       game: user.game,
+      eggs: user.eggs,
+      lore: user.lore,
     },
-    photos: {},
+    photos: [],
+    photoScope: photos,
   };
-  if (photos) {
-    for (const id of await listPhotoIds(user.name)) {
-      const dataUrl = await getPhoto(user.name, id);
-      if (dataUrl) data.photos[id] = dataUrl;
-    }
-  }
+
+  if (photos === 'none') return data;
+
+  const rows = await allPhotos(user.id);
+  const totalFull = rows.reduce((n, p) => n + (p.bytes || 0), 0);
+  const withFull = photos === 'full' && totalFull <= MAX_INLINE_PHOTO_BYTES;
+  if (photos === 'full' && !withFull) data.photoScope = 'thumbs';
+  data.truncated = photos === 'full' && !withFull;
+
+  data.photos = rows.map(p => ({
+    id: p.id,
+    tripId: p.tripId,
+    poiId: p.poiId,
+    at: p.at,
+    w: p.w, h: p.h, bytes: p.bytes,
+    thumb: p.thumb,
+    full: withFull ? p.full : null,
+  }));
   return data;
 }
 
 export async function downloadBackup(user, opts) {
   const data = await buildBackup(user, opts);
   const day = new Date().toISOString().slice(0, 10);
-  download(`braw-backup-${slug(user.name)}-${day}.json`, JSON.stringify(data, null, 2));
+  download(`braw-backup-${slug(user.name)}-${day}.json`, JSON.stringify(data));
   return data;
 }
 
@@ -168,18 +200,46 @@ export function readBackup(text) {
   if (!(data.version <= BACKUP_VERSION)) throw new Error('tooNew');
   const p = data.profile;
   if (!p || typeof p.name !== 'string' || !Array.isArray(p.trips)) throw new Error('notBackup');
+  data.photos = normalisePhotos(data);
   return data;
+}
+
+/**
+ * Version 1 wrote photographs as { poiId: dataUrl } — one per location,
+ * no journey, no separate print copy. Those files are still out there
+ * and must still restore, so they are lifted into the current shape
+ * here. The single image becomes both renditions and is marked legacy,
+ * which is what stops the calendar builder from offering a 1024px
+ * picture for an A4 print.
+ */
+function normalisePhotos(data) {
+  const raw = data.photos;
+  if (Array.isArray(raw)) return raw;
+  if (!raw || typeof raw !== 'object') return [];
+  return Object.entries(raw).map(([poiId, dataUrl], i) => ({
+    id: `ph_v1_${i}_${poiId}`.slice(0, 64),
+    tripId: '',
+    poiId,
+    at: Date.now(),
+    w: 0, h: 0, bytes: 0,
+    thumb: dataUrl,
+    full: dataUrl,
+    legacy: true,
+  }));
 }
 
 /** Counts for the confirmation prompt, so nobody overwrites blind. */
 export function backupSummary(data) {
   const p = data.profile;
+  const photos = Array.isArray(data.photos) ? data.photos : [];
   return {
     name: p.name,
     trips: p.trips.length,
     xp: p.xp || 0,
     achievements: (p.achievements || []).length,
-    photos: Object.keys(data.photos || {}).length,
+    photos: photos.length,
+    fullRes: photos.filter(x => x.full && !x.legacy).length,
+    truncated: Boolean(data.truncated),
     exportedAt: data.exportedAt,
   };
 }

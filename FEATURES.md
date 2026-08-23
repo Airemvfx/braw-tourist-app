@@ -46,10 +46,41 @@ Serve the folder with any static server and open `index.html`
   animated XP bar in the header.
 
 ### 4. Accounts & persistence
-- Register / sign-in with explorer name + password (SHA-256 hashed, localStorage-backed —
-  a stand-in for a real API; data shapes are backend-ready).
-- Session persistence, sign-out, **demo account** button with pre-seeded progress.
-- Per-user storage of XP, achievements, all roadtrips and their visited state, activity log.
+- **Local by default** — explorer name + password, kept in this browser. Session
+  persistence, sign-out, **demo account** button with pre-seeded progress.
+- **Optional real accounts** when a backend is configured ([BACKEND.md](BACKEND.md)):
+  email + password, sign in on a second device, password reset, and profile sync.
+  Existing local progress is carried up when someone signs up.
+- Sync detects conflicts rather than merging them: `profiles.revision` is an optimistic
+  counter, and a push from a device that missed an update is refused and put to the user.
+  Merging two divergent XP histories would produce a profile neither device ever had.
+- Zero-dependency Supabase client ([js/supabase.js](js/supabase.js)) written against the
+  REST APIs — no CDN, no 120KB SDK — with token refresh, cross-tab session sharing, and a
+  guard that refuses to start if given a `service_role` key instead of the anon key.
+- Everything degrades: no backend, or no signal, and the app is exactly as it was.
+
+### 4b. Photographs that survive
+- Two renditions per photograph: a 480px thumbnail for the interface and a **3000px copy
+  for print** (~257 dpi at A4). Re-encoding through a canvas also strips EXIF, GPS
+  included — which is asserted in the tests, because the privacy policy claims it.
+- Filed per **journey**, not just per location, so two visits to the same glen are two
+  photographs and a calendar can be built from one trip.
+- **[js/vault.js](js/vault.js)** asks the browser for persistent storage, reports quota and
+  eviction risk honestly, and exports every photograph as ordinary `.jpg` files —
+  into a chosen folder where the File System Access API exists.
+- The storage panel does not call photographs safe merely because persistence was granted:
+  a copy elsewhere is the only thing that survives "clear browsing data", and it says so.
+
+### 4c. Store
+- Calendar, prints, magnet and route poster, made from the user's own photographs.
+- Calendar builder: pick a journey, twelve months, swap any month, start from any month.
+- **Print resolution is checked before the order**, not after the parcel — each photograph
+  is graded at that product's real print width and flagged with its actual dpi.
+- Prices come from the server and orders are priced server-side by `create_order()`;
+  clients cannot insert an order or write a total. Ownership of every referenced
+  photograph is verified in the same function.
+- Until a shop is connected, checkout says plainly that it is not live. It never claims
+  to have sold anything.
 
 ### 5. Profile & statistics
 - Profile hero with level, rank title and XP-to-next-level bar.
