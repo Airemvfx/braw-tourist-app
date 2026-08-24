@@ -20,7 +20,8 @@ import {
   generateTrip, tripProgress, tripStopIds, tripTitle, paceLabel, distKm,
   wildcardsFor, addStops, poisInScope,
 } from './planner.js';
-import { renderMap, mapKeyHTML, updateUserDot } from './scotland-map.js';
+import { renderMap, mapKeyHTML, updateUserDot, project, unproject, MAP_SIZE } from './scotland-map.js';
+import { openMapViewer, googleMapsUrl, googlePlaceUrl, renderedMapWidth } from './map-viewer.js';
 import { leg as travelLeg, ferriesFor, ferryInfo } from './routing.js';
 import {
   downloadTripGPX, downloadTripGeoJSON, downloadBackup,
@@ -395,6 +396,80 @@ function wireNav() {
     user = null; draftTrip = null; openTripId = null;
     showAuth();
   });
+  wireMenu();
+}
+
+// ============================================================
+// The phone menu
+//
+// A row of ten tabs across the top of a phone is a scrolling strip you
+// have to reach up to, and the last few tabs are always off the edge.
+// The same <nav> is moved to a panel above a button in the bottom-left
+// corner instead — where the thumb already is — and every item is
+// visible at once when it opens.
+//
+// The element is the header's own <nav>, relocated by CSS rather than
+// duplicated in the markup. One list of tabs, one place the active
+// state is set, nothing to keep in step.
+// ============================================================
+
+function menuOpen() { return document.body.classList.contains('menu-open'); }
+
+function setMenu(open) {
+  document.body.classList.toggle('menu-open', open);
+  $('#menu-btn').setAttribute('aria-expanded', String(open));
+  $('#menu-scrim').hidden = !open;
+}
+
+/**
+ * Move the tabs out of the header on a phone, and back on a desktop.
+ *
+ * Not cosmetic. The header carries `backdrop-filter`, and a filtered
+ * element becomes the containing block for `position: fixed`
+ * descendants — so a panel pinned to the bottom of the screen was
+ * pinned to the bottom of the 64px header instead, and sat off the top
+ * of the page. Relocating the element is the fix; styling alone cannot
+ * reach past an ancestor's containing block.
+ *
+ * The same <nav> travels either way, so the active tab and every
+ * listener on it come along untouched.
+ */
+function placeNav(wide) {
+  const nav = $('#hdr-nav');
+  const header = $('.app-header');
+  const btn = $('#menu-btn');
+  if (!nav || !header || !btn) return;
+
+  if (wide) {
+    if (nav.parentElement !== header) header.insertBefore(nav, header.firstElementChild);
+  } else if (nav.previousElementSibling !== btn) {
+    btn.after(nav);
+  }
+}
+
+function wireMenu() {
+  const btn = $('#menu-btn');
+
+  btn.addEventListener('click', () => setMenu(!menuOpen()));
+  $('#menu-scrim').addEventListener('click', () => setMenu(false));
+
+  // Choosing somewhere to go is the end of needing the menu.
+  $$('.nav-btn').forEach(b => b.addEventListener('click', () => setMenu(false)));
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && menuOpen()) { setMenu(false); btn.focus(); }
+  });
+
+  // Widening past the breakpoint puts the tabs back in the header, where
+  // "open" has no meaning — and would otherwise leave the scrim covering
+  // a perfectly normal desktop page.
+  const wide = window.matchMedia('(min-width: 641px)');
+  const sync = () => {
+    placeNav(wide.matches);
+    if (wide.matches && menuOpen()) setMenu(false);
+  };
+  sync();
+  wide.addEventListener ? wide.addEventListener('change', sync) : wide.addListener(sync);
 }
 
 // ============================================================
@@ -672,7 +747,7 @@ function renderDraft() {
         </div>
       </div>
       <div class="poi-panel" hidden></div>
-      <div class="map-stage">${renderMap(stops, trip.start)}</div>
+      <div class="map-stage">${renderMap(stops, trip.start)}${mapToolsHTML('draft')}</div>
       ${mapKeyHTML()}
       ${wildcardHTML(trip)}
       <div class="stop-list">${stopListHTML(trip, false)}</div>
@@ -683,6 +758,10 @@ function renderDraft() {
   wireWildcards();
   wireMapMarkers(box, trip, false);
   wireStopList(box, trip);
+  wireMapTools(box, 'draft', {
+    render: () => renderMap(stops, trip.start, null, { idSuffix: 'fs' }),
+    stops, start: trip.start, title: tripTitle(trip),
+  });
 }
 
 function saveDraft() {
@@ -862,10 +941,19 @@ function renderBuildSummary() {
 function renderBuildMap() {
   const stops = bdPois().map((poi, i) => ({ poi, visited: false, order: i + 1 }));
   const scope = $('#view-build');
+  const cands = bdCandidates();
+  // The tools are re-emitted with the map because this whole element is
+  // rewritten on every tap; anything appended alongside would be thrown
+  // away by the next redraw.
   $('#bd-map').innerHTML = renderMap(stops, bdStart(), null, {
-    idSuffix: 'bd', candidates: bdCandidates(),
-  });
+    idSuffix: 'bd', candidates: cands,
+  }) + mapToolsHTML('build');
   $('#bd-key').innerHTML = mapKeyHTML();
+  wireMapTools($('#bd-map'), 'build', {
+    render: () => renderMap(stops, bdStart(), null, { idSuffix: 'fs', candidates: cands }),
+    stops, start: bdStart(), title: t('nav.build'),
+    onPicked: id => openBuilderPoi(id),
+  });
   scope.querySelectorAll('.map-marker').forEach(m => onActivate(m, () => openBuilderPoi(m.dataset.poi)));
   scope.querySelectorAll('.map-cand').forEach(m => onActivate(m, () => openBuilderPoi(m.dataset.cand)));
   // keep the open location highlighted across redraws
@@ -1277,6 +1365,94 @@ function stopListHTML(trip, interactive) {
   }).join('');
 }
 
+// ============================================================
+// The two buttons that sit on every map
+//
+// Kept as one helper so the trip map and the builder map cannot drift
+// apart. Both are overlaid on the map rather than placed under it: the
+// map is full-bleed and tall, and a control below the fold is a control
+// nobody finds.
+// ============================================================
+
+function mapToolsHTML(id) {
+  return `
+    <div class="map-tools" data-tools="${id}">
+      <button type="button" class="map-tool" data-map-full="${id}"
+              aria-label="${esc(t('map.fullscreen'))}" title="${esc(t('map.fullscreen'))}">⛶</button>
+      <a class="map-tool" data-map-google="${id}" target="_blank" rel="noopener" href="#"
+         aria-label="${esc(t('map.google'))}" title="${esc(t('map.google'))}">🌍</a>
+    </div>`;
+}
+
+/**
+ * Where Google Maps should open for a map showing these places.
+ *
+ * Framed on what is actually drawn — the stops plus the start — rather
+ * than on the whole of Scotland, so a trip round Aberdeenshire opens on
+ * Aberdeenshire instead of on the North Sea. With nothing to frame it
+ * falls back to the country.
+ */
+function googleUrlForStops(stops, start, widthPx) {
+  const pts = [
+    ...(start ? [[start.lon, start.lat]] : []),
+    ...stops.map(s => [s.poi.lon, s.poi.lat]),
+  ];
+  if (!pts.length) {
+    const [lon, lat] = unproject(MAP_SIZE.W / 2, MAP_SIZE.H / 2);
+    return googleMapsUrl(lon, lat, MAP_SIZE.lonMax - MAP_SIZE.lonMin, widthPx);
+  }
+  if (pts.length === 1) return googlePlaceUrl(pts[0][1], pts[0][0]);
+
+  const lons = pts.map(p => p[0]);
+  const lats = pts.map(p => p[1]);
+  const lonSpan = Math.max(...lons) - Math.min(...lons);
+  const latSpan = Math.max(...lats) - Math.min(...lats);
+  // A tall, narrow journey is framed by its height, so widen the span we
+  // hand over rather than opening zoomed past both ends of it.
+  const span = Math.max(lonSpan, latSpan * 0.6, 0.05) * 1.35;
+  return googleMapsUrl(
+    (Math.max(...lons) + Math.min(...lons)) / 2,
+    (Math.max(...lats) + Math.min(...lats)) / 2,
+    span, widthPx,
+  );
+}
+
+/**
+ * The patch of map a journey occupies, so full screen opens on the trip
+ * rather than on the whole country. Null when there is nothing to frame,
+ * which leaves the viewer showing all of Scotland.
+ */
+function focusBoxFor(stops, start) {
+  const pts = [
+    ...(start ? [project(start.lon, start.lat)] : []),
+    ...stops.map(s => project(s.poi.lon, s.poi.lat)),
+  ];
+  if (pts.length < 2) return null;
+  const xs = pts.map(p => p[0]);
+  const ys = pts.map(p => p[1]);
+  const x = Math.min(...xs), y = Math.min(...ys);
+  return { x, y, w: Math.max(...xs) - x, h: Math.max(...ys) - y };
+}
+
+/**
+ * @param scope   where the buttons live
+ * @param id      matches mapToolsHTML(id)
+ * @param render  () => SVG string for the fullscreen copy
+ * @param stops   for framing the Google Maps view
+ */
+function wireMapTools(scope, id, { render, stops = [], start = null, title = '', onPicked = null }) {
+  const full = scope.querySelector(`[data-map-full="${id}"]`);
+  const gmap = scope.querySelector(`[data-map-google="${id}"]`);
+  if (!full || !gmap) return;
+
+  full.addEventListener('click', () => {
+    openMapViewer({ html: render(), title, onPicked, focus: focusBoxFor(stops, start) });
+  });
+
+  const stage = scope.querySelector('.map-stage') || gmap.closest('.map-stage');
+  gmap.href = googleUrlForStops(stops, start, stage ? renderedMapWidth(stage) : 800);
+}
+
 /**
  * Show a location above the map instead of scrolling the page to it.
  * Tapping pin after pin used to walk the user down the page and leave
@@ -1499,7 +1675,7 @@ function renderTripDetail() {
     <!-- Selected pin, above the map so the map never scrolls away -->
     <div class="poi-panel" id="poi-panel" hidden></div>
 
-    <div class="map-stage">${renderMap(stops, trip.start)}</div>
+    <div class="map-stage">${renderMap(stops, trip.start)}${mapToolsHTML('trip')}</div>
     ${mapKeyHTML()}
 
     <div class="geo-bar" id="geo-bar"></div>
@@ -1523,6 +1699,14 @@ function renderTripDetail() {
     toastInfo(t('data.exported', { name: 'GeoJSON' }), '🗺️');
   });
   wireMapMarkers(host);
+  wireMapTools(host, 'trip', {
+    // Re-rendered rather than cloned: a clone would carry duplicate
+    // gradient and filter ids into the document, and every url(#...)
+    // in both copies would then resolve to whichever parsed first.
+    render: () => renderMap(stops, trip.start, locationState().position, { idSuffix: 'fs' }),
+    stops, start: trip.start, title: tripTitle(trip),
+    onPicked: id => openPoiPanel(id, host, trip, true),
+  });
   wireStopList(host, trip);
   hydratePhotos(host);
   renderGeoBar(trip);

@@ -27,6 +27,16 @@ export function project(lon, lat) {
   return [x, y];
 }
 
+/** project() backwards: map coordinates to the ground they stand for. */
+export function unproject(x, y) {
+  const lon = BOUNDS.lonMin + (x / W) * (BOUNDS.lonMax - BOUNDS.lonMin);
+  const lat = BOUNDS.latMax - (y / H) * (BOUNDS.latMax - BOUNDS.latMin);
+  return [lon, lat];
+}
+
+/** The map's own dimensions, for anything that has to reason about its frame. */
+export const MAP_SIZE = { W, H, ...BOUNDS };
+
 export const TERRAIN_ID = 'braw-terrain';
 
 /**
@@ -177,7 +187,14 @@ export function updateUserDot(scope, userPos) {
                   `<circle class="ul-dot" r="5.5"/><title></title>`;
     svg.appendChild(g);           // last child: on top of the route and pins
   }
-  g.setAttribute('transform', `translate(${x.toFixed(1)},${y.toFixed(1)})`);
+  // Record the anchor as well as applying it, so a zoomed viewer can
+  // rebuild this transform with its counter-scale still in place —
+  // otherwise the next GPS fix would snap the dot back to full size.
+  g.dataset.mx = x.toFixed(1);
+  g.dataset.my = y.toFixed(1);
+  const z = Number(svg.dataset.zoom || 1);
+  g.setAttribute('transform',
+    `translate(${x.toFixed(1)},${y.toFixed(1)})${z > 1 ? ` scale(${(1 / z).toFixed(4)})` : ''}`);
   g.querySelector('.ul-accuracy').setAttribute('r', accR.toFixed(1));
   g.querySelector('title').textContent =
     t('map.yourLocation', { n: Math.round(userPos.accuracy || 0) });
@@ -253,15 +270,27 @@ const MAP_PLACES = [
 ];
 
 /** Names, drawn under the route and the pins so they never cover one. */
+/**
+ * Anything that should keep its size when the map is zoomed carries its
+ * own position in data-mx/data-my and is placed with a translate, so
+ * the fullscreen viewer can rewrite the transform as
+ * `translate(x,y) scale(1/zoom)` without touching anything else.
+ *
+ * That matters more than it looks. Scaling the whole map uniformly
+ * magnifies pins along with the terrain, so two locations that overlap
+ * at rest still overlap at 8× — which defeats the one thing zooming
+ * into a crowded area is for.
+ */
+const pin = (x, y) => `data-mx="${x.toFixed(1)}" data-my="${y.toFixed(1)}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})"`;
+
 function placeLabels() {
   return MAP_PLACES.map(([tier, name, lat, lon, anchor]) => {
     const [x, y] = project(lon, lat);
     const dx = anchor === 'e' ? 5.5 : -5.5;
     return `
-      <g class="map-place t${tier}">
-        <circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="1.9"/>
-        <text x="${(x + dx).toFixed(1)}" y="${(y + 3).toFixed(1)}"
-              text-anchor="${anchor === 'e' ? 'start' : 'end'}">${esc(cityName(name))}</text>
+      <g class="map-place t${tier}" ${pin(x, y)}>
+        <circle r="1.9"/>
+        <text x="${dx}" y="3" text-anchor="${anchor === 'e' ? 'start' : 'end'}">${esc(cityName(name))}</text>
       </g>`;
   }).join('');
 }
@@ -290,7 +319,7 @@ export function renderMap(stops = [], start = null, userPos = null, opts = {}) {
       const [x, y] = project(s.poi.lon, s.poi.lat);
       const visited = s.visited;
       return `
-      <g class="map-marker ${visited ? 'is-visited' : ''}" data-poi="${s.poi.id}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})" tabindex="0" role="button" aria-label="${esc(poiName(s.poi))}">
+      <g class="map-marker ${visited ? 'is-visited' : ''}" data-poi="${s.poi.id}" ${pin(x, y)} tabindex="0" role="button" aria-label="${esc(poiName(s.poi))}">
         <circle class="marker-halo" r="13"></circle>
         <circle class="marker-dot" r="9.5"></circle>
         ${visited
@@ -308,7 +337,7 @@ export function renderMap(stops = [], start = null, userPos = null, opts = {}) {
     .map(poi => {
       const [x, y] = project(poi.lon, poi.lat);
       return `
-      <g class="map-cand" data-cand="${poi.id}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})" tabindex="0" role="button" aria-label="${esc(poiName(poi))}">
+      <g class="map-cand" data-cand="${poi.id}" ${pin(x, y)} tabindex="0" role="button" aria-label="${esc(poiName(poi))}">
         <circle class="cand-hit" r="14"></circle>
         <circle class="cand-dot" r="4.5"></circle>
         <title>${esc(`${poiName(poi)} — ${regionName(poi.region)}`)}</title>
@@ -320,7 +349,7 @@ export function renderMap(stops = [], start = null, userPos = null, opts = {}) {
     ? (() => {
         const [x, y] = project(start.lon, start.lat);
         return `
-        <g class="map-start" transform="translate(${x.toFixed(1)},${y.toFixed(1)})">
+        <g class="map-start" ${pin(x, y)}>
           <circle r="5.5" class="start-dot"></circle>
           <circle r="11" class="start-ring"></circle>
           <text y="-15" text-anchor="middle" class="start-label">${esc(cityName(start.name).toUpperCase())} · ${t('map.start')}</text>
@@ -340,7 +369,7 @@ export function renderMap(stops = [], start = null, userPos = null, opts = {}) {
         const pxPerM = (W / (BOUNDS.lonMax - BOUNDS.lonMin)) / 111_000;
         const accR = Math.min(40, Math.max(6, (userPos.accuracy || 50) * pxPerM));
         return `
-        <g class="user-location" transform="translate(${ux.toFixed(1)},${uy.toFixed(1)})">
+        <g class="user-location" ${pin(ux, uy)}>
           <circle class="ul-accuracy" r="${accR.toFixed(1)}"/>
           <circle class="ul-pulse" r="9"/>
           <circle class="ul-dot" r="5.5"/>

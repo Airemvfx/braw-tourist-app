@@ -82,11 +82,31 @@ Serve the folder with any static server and open `index.html`
 - Until a shop is connected, checkout says plainly that it is not live. It never claims
   to have sold anything.
 
+### 4d. Reading the map
+- **Full screen map** ([js/map-viewer.js](js/map-viewer.js)) with drag, wheel, pinch and
+  double-tap zoom, keyboard control, and a tap on any pin for its details.
+- Zooming rewrites the SVG's **viewBox**, so the map stays vector-sharp, and everything
+  carrying `data-mx`/`data-my` is **counter-scaled**: pins and place names hold their size
+  on screen while the land grows underneath. That is the whole point — scale a map
+  uniformly and two pins that overlap at rest still overlap at 8×, because the gap between
+  them grows too. Measured in the tests: a pin stays 55px while its neighbour moves from
+  3px away to 21px.
+- The view is **shaped to the screen** rather than to the map. Left at the map's own
+  560×730 a phone wasted about four tenths of its display on empty sea; and it opens
+  framed on the journey, so a two-day trip round Aberdeenshire no longer opens over the
+  North Sea.
+- **Open in Google Maps**, from the map or from any single location. The current centre
+  and scale are converted to Google's zoom levels, and the link is kept current as you
+  move so copying it or opening it in a new tab gets where you are now.
+
 ### 5. Profile & statistics
 - Profile hero with level, rank title and XP-to-next-level bar.
 - 8 stat tiles: locations visited, quests created/completed, castles stormed, drams earned,
   regions explored, peaks bagged, achievements.
 - Recent-activity feed with XP deltas.
+- **Phone navigation** is a hamburger in the bottom-left corner, where the thumb already
+  is, opening the whole menu at once instead of a scrolling strip of tabs across the top.
+  It is the header's own `<nav>`, relocated — one list of destinations, one active state.
 
 ### 6. Leaderboard
 - Ranked table of 9 seeded rival explorers + the signed-in user (live position by XP),

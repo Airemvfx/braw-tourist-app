@@ -496,6 +496,14 @@ const EN = {
 
   // ---- map ----
   'map.aria': 'Map of Scotland with roadtrip stops',
+  'map.fullscreen': 'Full screen map',
+  'map.fullscreenHint': 'Drag to move · pinch or scroll to zoom · tap a pin for details',
+  'map.google': 'Open this view in Google Maps',
+  'map.openHere': 'Open in Google Maps',
+  'map.zoomIn': 'Zoom in',
+  'map.zoomOut': 'Zoom out',
+  'map.zoomReset': 'Fit the whole map',
+  'nav.menu': 'Menu',
   'map.start': 'START',
   'map.startTitle': 'Start: {name}',
   'map.yourLocation': 'Your location (±{n}m)',
@@ -1191,6 +1199,14 @@ const PL = {
 
   // ---- map ----
   'map.aria': 'Mapa Szkocji z przystankami wyprawy',
+  'map.fullscreen': 'Mapa na pełnym ekranie',
+  'map.fullscreenHint': 'Przeciągnij, aby przesunąć · szczypnij lub przewiń, aby przybliżyć · dotknij pinezki po szczegóły',
+  'map.google': 'Otwórz ten widok w Mapach Google',
+  'map.openHere': 'Otwórz w Mapach Google',
+  'map.zoomIn': 'Przybliż',
+  'map.zoomOut': 'Oddal',
+  'map.zoomReset': 'Dopasuj całą mapę',
+  'nav.menu': 'Menu',
   'map.start': 'START',
   'map.startTitle': 'Start: {name}',
   'map.yourLocation': 'Twoja lokalizacja (±{n} m)',

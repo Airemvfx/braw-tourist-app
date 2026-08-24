@@ -149,7 +149,7 @@
   <!-- ================= APP SCREEN ================= -->
   <div id="app-screen" hidden>
     <header class="app-header">
-      <nav class="hdr-nav">
+      <nav class="hdr-nav" id="hdr-nav">
         <button class="nav-btn" data-view="plan" data-i18n="nav.plan">New Quest</button>
         <button class="nav-btn" data-view="build" data-i18n="nav.build">Build</button>
         <button class="nav-btn" data-view="trips" data-i18n="nav.trips">My Quests</button>
@@ -182,6 +182,16 @@
       </div>
     </header>
     <div class="scope-banner" aria-hidden="true"></div>
+
+    <!-- Phone menu. The panel it opens is the header's own <nav>, moved
+         down here by CSS rather than duplicated, so there is only ever
+         one set of tabs to keep in step. -->
+    <div class="menu-scrim" id="menu-scrim" hidden></div>
+    <button type="button" class="menu-fab" id="menu-btn"
+            aria-controls="hdr-nav" aria-expanded="false"
+            data-i18n-aria="nav.menu" aria-label="Menu">
+      <span class="mf-bars" aria-hidden="true"><i></i><i></i><i></i></span>
+    </button>
 
     <main class="app-main" id="app-main" tabindex="-1">
 

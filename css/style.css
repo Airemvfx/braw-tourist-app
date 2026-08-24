@@ -997,17 +997,26 @@ small { font-size: 0.78em; }
 .gps-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 
 /* geofence prompt — slides up from bottom */
+/* Parked off the bottom by its own height rather than by a fixed -120px:
+   at 480px the card is 96px tall, but wrapped onto a narrow phone it is
+   146px, so a constant offset left 26px of it permanently peeking above
+   the edge. A percentage translate cannot be wrong at any height.
+   `visibility` keeps it out of the tab order while it is away. */
 .geo-prompt {
-  position: fixed; bottom: -120px; left: 50%; transform: translateX(-50%);
+  position: fixed; bottom: 1.5rem; left: 50%;
+  /* Its own height plus more than the largest `bottom` it is ever given
+     (5.4rem on a phone), so it is clear of the edge in every layout. */
+  transform: translate(-50%, calc(100% + 8rem));
+  visibility: hidden;
   z-index: 80; width: min(480px, 94vw);
   background: var(--surface-2);
   border: 1px solid rgba(79,158,122,0.45);
   border-radius: 16px; padding: 1.2rem 1.4rem;
   box-shadow: 0 -4px 40px var(--shadow-rgba);
-  transition: bottom 0.45s cubic-bezier(0.2,0.9,0.3,1.1);
+  transition: transform 0.45s cubic-bezier(0.2,0.9,0.3,1.1), visibility 0.45s;
   display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
 }
-.geo-prompt.show { bottom: 1.5rem; }
+.geo-prompt.show { transform: translate(-50%, 0); visibility: visible; }
 .geo-icon { font-size: 2rem; flex-shrink: 0; }
 .geo-body { flex: 1; min-width: 180px; }
 .geo-kicker { font-family: var(--font-mono); font-size: 0.6rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--sage); }
@@ -2844,4 +2853,200 @@ small { font-size: 0.78em; }
   .cal-grid { grid-template-columns: repeat(auto-fill, minmax(7rem, 1fr)); }
   .order-row { grid-template-columns: 1fr auto; }
   .order-what { grid-column: 1 / -1; }
+}
+
+/* ============================================================
+   Map tools, the fullscreen map, and the phone menu
+   ============================================================ */
+
+/* ---- the two buttons on every map -------------------------- */
+.map-tools {
+  position: absolute; top: 0.7rem; right: 0.7rem; z-index: 3;
+  display: flex; flex-direction: column; gap: 0.4rem;
+}
+.map-tool {
+  width: 2.5rem; height: 2.5rem; display: grid; place-items: center;
+  font-size: 1.05rem; line-height: 1; cursor: pointer; text-decoration: none;
+  color: var(--text-dim);
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  border: 1px solid var(--border-strong); border-radius: 10px;
+  backdrop-filter: blur(6px);
+  transition: color 0.16s, background 0.16s, border-color 0.16s, transform 0.14s;
+}
+.map-tool:hover { color: var(--amber-ink); border-color: var(--border-active); }
+.map-tool:active { transform: scale(0.94); }
+
+/* ---- fullscreen map ---------------------------------------- */
+body.mapfs-open { overflow: hidden; }
+
+.mapfs {
+  position: fixed; inset: 0; z-index: 120;
+  display: flex; flex-direction: column;
+  background:
+    radial-gradient(ellipse 70% 55% at 50% 45%, var(--map-glow), transparent 70%),
+    var(--map-sea);
+}
+.mv-stage {
+  position: absolute; inset: 0;
+  cursor: grab; touch-action: none;   /* we handle pan and pinch ourselves */
+  overscroll-behavior: contain;
+}
+.mv-stage:active { cursor: grabbing; }
+.mv-stage .scotmap { width: 100%; height: 100%; display: block; }
+
+/* The route is a road, not a ribbon: at 8x a scaled stroke would be
+   thicker than the glens it runs through. Markers need no equivalent —
+   they are counter-scaled whole, so their strokes come back with them. */
+.mapfs .map-route,
+.mapfs .map-route-trim { vector-effect: non-scaling-stroke; }
+
+.mv-top {
+  position: relative; z-index: 2;
+  display: flex; align-items: center; gap: 0.9rem;
+  padding: calc(0.7rem + env(safe-area-inset-top)) 0.9rem 0.7rem;
+  background: linear-gradient(var(--map-sea), transparent);
+  pointer-events: none;
+}
+.mv-top > * { pointer-events: auto; }
+.mv-title {
+  font-family: var(--font-ui); font-weight: 600; font-size: 0.95rem;
+  color: var(--text); flex: 1;
+  text-shadow: 0 1px 6px var(--map-sea);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.mv-close { flex-shrink: 0; }
+
+.mv-tools {
+  position: absolute; z-index: 2; right: 0.9rem;
+  top: 50%; transform: translateY(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 0.45rem;
+}
+.mv-btn {
+  width: 2.9rem; height: 2.9rem; display: grid; place-items: center;
+  font-size: 1.15rem; line-height: 1; cursor: pointer; text-decoration: none;
+  color: var(--text-dim);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  border: 1px solid var(--border-strong); border-radius: 12px;
+  backdrop-filter: blur(6px);
+  transition: color 0.16s, border-color 0.16s, transform 0.14s, opacity 0.16s;
+}
+.mv-btn:hover:not(:disabled) { color: var(--amber-ink); border-color: var(--border-active); }
+.mv-btn:active { transform: scale(0.94); }
+.mv-btn:disabled { opacity: 0.35; cursor: default; }
+.mv-zoom {
+  font-family: var(--font-mono); font-size: 0.62rem; color: var(--text-faint);
+  text-shadow: 0 1px 4px var(--map-sea);
+}
+.mv-gmaps { font-size: 1.25rem; }
+
+.mv-hint {
+  position: absolute; z-index: 2; left: 50%; transform: translateX(-50%);
+  bottom: calc(0.9rem + env(safe-area-inset-bottom));
+  margin: 0; padding: 0.4rem 0.9rem; max-width: min(30rem, 84vw);
+  font-size: 0.72rem; text-align: center; color: var(--text-faint);
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+  border-radius: 999px; backdrop-filter: blur(6px);
+  pointer-events: none;
+}
+
+.mv-info {
+  position: absolute; z-index: 3;
+  left: 0.9rem; bottom: calc(0.9rem + env(safe-area-inset-bottom));
+  width: min(23rem, calc(100vw - 1.8rem));
+  padding: 1rem 1.1rem;
+  background: var(--surface); border: 1px solid var(--border-strong);
+  border-radius: 14px; box-shadow: var(--shadow);
+}
+.mv-info h3 { margin: 0 0 0.35rem; font-size: 1.02rem; padding-right: 1.6rem; }
+.mv-info-meta { font-family: var(--font-mono); font-size: 0.66rem; color: var(--text-faint); margin-bottom: 0.5rem; }
+.mv-info p { margin: 0 0 0.7rem; font-size: 0.85rem; line-height: 1.55; color: var(--text-dim); }
+.mv-info-close {
+  position: absolute; top: 0.55rem; right: 0.6rem;
+  width: 1.7rem; height: 1.7rem; display: grid; place-items: center;
+  background: none; border: 0; cursor: pointer; border-radius: 6px;
+  color: var(--text-faint); font-size: 0.85rem;
+}
+.mv-info-close:hover { color: var(--text); background: var(--wash-1); }
+
+/* With the info card open on a phone, the hint underneath it is noise. */
+@media (max-width: 640px) {
+  .mapfs .mv-info:not([hidden]) ~ .mv-hint { display: none; }
+  .mv-tools { top: auto; bottom: calc(5.5rem + env(safe-area-inset-bottom)); transform: none; }
+}
+
+/* ---- the phone menu ---------------------------------------- */
+.menu-fab, .menu-scrim { display: none; }
+
+@media (max-width: 640px) {
+  .menu-scrim {
+    display: block; position: fixed; inset: 0; z-index: 89;
+    background: rgba(0,0,0,0.45); backdrop-filter: blur(2px);
+  }
+
+  .menu-fab {
+    display: grid; place-items: center;
+    position: fixed; z-index: 91;
+    left: 0.9rem; bottom: calc(0.9rem + env(safe-area-inset-bottom));
+    width: 3.4rem; height: 3.4rem; border-radius: 50%;
+    cursor: pointer; padding: 0;
+    background: var(--amber); color: var(--on-amber);
+    border: 1px solid var(--border-active);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+    transition: transform 0.16s var(--ease-out), background 0.16s;
+  }
+  .menu-fab:active { transform: scale(0.93); }
+
+  .mf-bars { display: grid; gap: 4px; width: 18px; }
+  .mf-bars i {
+    display: block; height: 2px; border-radius: 2px; background: currentColor;
+    transition: transform 0.2s var(--ease-out), opacity 0.15s;
+  }
+  body.menu-open .mf-bars i:nth-child(1) { transform: translateY(6px) rotate(45deg); }
+  body.menu-open .mf-bars i:nth-child(2) { opacity: 0; }
+  body.menu-open .mf-bars i:nth-child(3) { transform: translateY(-6px) rotate(-45deg); }
+
+  /* The header's <nav>, relocated. Not a copy — the same element, so the
+     active tab and every listener carry over untouched. */
+  .hdr-nav {
+    position: fixed; z-index: 90;
+    left: 0.9rem; right: 0.9rem;
+    /* The tab-strip rules above set width:100%, which would win over the
+       left/right pair and push the panel through the right gutter. */
+    width: auto; overflow-x: visible;
+    bottom: calc(4.9rem + env(safe-area-inset-bottom));
+    max-height: min(62vh, 30rem); overflow-y: auto;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem;
+    padding: 0.7rem; margin: 0;
+    background: var(--surface-2);
+    border: 1px solid var(--border-strong); border-radius: 16px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+
+    visibility: hidden; opacity: 0;
+    transform: translateY(10px) scale(0.98);
+    transform-origin: bottom left;
+    transition: opacity 0.18s var(--ease-out), transform 0.18s var(--ease-out), visibility 0.18s;
+  }
+  body.menu-open .hdr-nav {
+    visibility: visible; opacity: 1; transform: none;
+  }
+
+  .hdr-nav .nav-btn {
+    padding: 0.8rem 0.7rem; font-size: 0.88rem; text-align: center;
+    border-radius: 10px; background: var(--surface);
+    border: 1px solid var(--border);
+  }
+  .hdr-nav .nav-btn.active {
+    background: var(--amber-pale); border-color: var(--border-active);
+  }
+
+  /* Room for the button, so the last card is never trapped beneath it. */
+  .app-main { padding-bottom: calc(5.6rem + env(safe-area-inset-bottom)); }
+
+  /* The arrival card is centred and the menu button is bottom-left, and
+     at 390px the two overlap. Lift the card above it. */
+  .geo-prompt { bottom: calc(5.4rem + env(safe-area-inset-bottom)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hdr-nav, .mf-bars i, .map-tool, .mv-btn { transition: none; }
 }
