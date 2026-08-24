@@ -58,13 +58,31 @@ export class GeoTracker {
 
   get isTracking() { return this._watchId !== null; }
 
-  /** Request permission + start watching. Returns false if not available. */
+  /**
+   * Request permission + start watching. Returns false if not available.
+   *
+   * Two requests, not one. A high-accuracy watch waits for a GPS lock,
+   * which outdoors takes tens of seconds and indoors may never come —
+   * so the first thing asked for is a coarse fix from wifi and cell
+   * towers, which usually answers in about a second. That puts a dot on
+   * the map almost immediately, and the watch then refines it.
+   *
+   * The coarse request's failure is deliberately ignored: the watch
+   * reports the same problem, and two identical errors would show the
+   * user two identical complaints.
+   */
   start() {
     if (!navigator.geolocation) {
       this.onError(new Error('Geolocation is not supported by this browser.'));
       return false;
     }
     if (this._watchId !== null) return true; // already running
+
+    navigator.geolocation.getCurrentPosition(
+      pos => { if (this._watchId !== null) this._handlePos(pos); },
+      () => {},
+      { enableHighAccuracy: false, timeout: 10_000, maximumAge: 120_000 }
+    );
 
     this._watchId = navigator.geolocation.watchPosition(
       pos  => this._handlePos(pos),

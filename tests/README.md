@@ -16,7 +16,7 @@ your Playwright install differs.
 | `build` | the journey builder: filters, search, reordering, day stepper, save, both languages, wide layout |
 | `ferry` | a route across water says so, names the crossing, and costs the boat |
 | `export` | GPX and GeoJSON parse; a backup round-trips; a junk file fails without changing anything |
-| `geo` | live location: the consent gate, a refused permission, the moving dot, a geofence check-in, and that switching off releases the watch |
+| `geo` | live location: the consent gate, a refused permission, the moving dot, a geofence check-in, that switching off releases the watch — and the three paths a mocked happy path never reaches: a browser that never answers, a user who is not in Scotland, and the push-in that marks a fix arriving |
 | `library` | the lore library: unlock rules, filters, both languages, and an Easter egg firing |
 | `safety` | the safety screen is complete, emergency info comes first, and both languages are filled in |
 | `scope` | trips scoped to a city or region, place names on the map, and the seasonal strip in both languages |

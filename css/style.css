@@ -2547,10 +2547,6 @@ small { font-size: 0.78em; }
 }
 .geo-sim { font-size: 0.7rem; }
 
-/* Outside Scotland the dot is clamped to the frame, so it stops
-   pretending to be an exact position. */
-.user-location.is-offmap { opacity: 0.45; }
-.user-location.is-offmap .ul-pulse { animation: none; }
 
 /* ---- asking, before the browser asks ---- */
 .geo-consent {
@@ -3337,4 +3333,37 @@ body.mapfs-open { overflow: hidden; }
   .lb-meta { font-size: 0.6rem; letter-spacing: 0; }
   .lb-xp { font-size: 0.78rem; }
   .lb-rank { font-size: 0.85rem; }
+}
+
+/* ---- the moment your position lands -------------------------
+   Finding somebody can take several seconds, and without a marker for
+   the arrival it reads as nothing having happened — which is how the
+   silence was reported. One ring closes on the dot, the dot swells and
+   settles. Two and a bit seconds, then it goes back to its quiet pulse. */
+@keyframes gps-lock-ring {
+  0%   { r: 46; opacity: 0; stroke-width: 1; }
+  25%  { opacity: 0.9; }
+  100% { r: 9; opacity: 0; stroke-width: 3; }
+}
+@keyframes gps-lock-dot {
+  0%   { transform: scale(1); }
+  35%  { transform: scale(1.9); }
+  100% { transform: scale(1); }
+}
+.user-location.is-found .ul-dot {
+  animation: gps-lock-dot 0.75s var(--ease-pop) 2;
+  transform-origin: center;
+  transform-box: fill-box;
+}
+.user-location.is-found::after { content: none; }
+.user-location.is-found .ul-lock {
+  animation: gps-lock-ring 0.9s ease-out 2;
+}
+.user-location .ul-lock {
+  fill: none; stroke: var(--sage); stroke-width: 2; r: 9; opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .user-location.is-found .ul-dot,
+  .user-location.is-found .ul-lock { animation: none; }
 }

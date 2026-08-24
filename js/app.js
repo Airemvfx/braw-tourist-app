@@ -20,8 +20,13 @@ import {
   generateTrip, tripProgress, tripStopIds, tripTitle, paceLabel, distKm,
   wildcardsFor, addStops, poisInScope,
 } from './planner.js';
-import { renderMap, mapKeyHTML, updateUserDot, mountTerrain, project, unproject, MAP_SIZE } from './scotland-map.js';
-import { openMapViewer, googleMapsUrl, googlePlaceUrl, renderedMapWidth } from './map-viewer.js';
+import {
+  renderMap, mapKeyHTML, updateUserDot, mountTerrain,
+  project, unproject, onMap, kmFromScotland, flourishTo, MAP_SIZE,
+} from './scotland-map.js';
+import {
+  openMapViewer, googleMapsUrl, googlePlaceUrl, renderedMapWidth, focusViewerOn,
+} from './map-viewer.js';
 import { leg as travelLeg, ferriesFor, ferryInfo } from './routing.js';
 import {
   downloadTripGPX, downloadTripGeoJSON, downloadBackup,
@@ -1719,12 +1724,16 @@ function renderGeoBar(trip) {
       <span class="geo-dot ${on ? 'is-live' : ''}" aria-hidden="true"></span>
       ${esc(busy ? t('geo.asking') : on ? t('geo.on') : t('geo.title'))}
     </button>
-    ${on && position ? `
+    ${on && position && !onMap(position.lat, position.lon) ? `
+      <span class="geo-problem">${esc(t('geo.notHere', { km: formatNumber(kmFromScotland(position.lat, position.lon)) }))}</span>
+      <button type="button" class="link-btn geo-sim" id="geo-sim">${t('geo.simulate')}</button>` : ''}
+    ${on && position && onMap(position.lat, position.lon) ? `
       <span class="geo-meta">
         ${esc(near ? t('geo.nearest', { name: poiName(near.poi), dist: formatMetres(near.metres) }) : '')}
         <i>${esc(t('geo.accuracy', { n: Math.round(position.accuracy || 0) }))}</i>
       </span>
       <button type="button" class="link-btn geo-sim" id="geo-sim">${t('geo.simulate')}</button>` : ''}
+    ${on && !position ? `<span class="geo-meta">${esc(t('geo.searching'))}</span>` : ''}
     ${problem ? `<span class="geo-problem">${esc(t(problem))}</span>` : ''}`;
 
   $('#geo-toggle').addEventListener('click', () => {
@@ -1748,15 +1757,57 @@ function renderGeoBar(trip) {
  * which... the tab locked up on the first position fix.
  */
 function wireLocation() {
-  onLocationChange(({ position: pos }) => {
+  onLocationChange(({ position: pos, firstFix }) => {
     // Every map on the page, not just the trip's: the builder shows one,
     // and the full-screen viewer is a third that can be open over either.
     refreshUserDots(pos);
     syncGeoButtons();
+    if (firstFix && pos) announceFix(pos);
     if (currentView !== 'trip') return;
     const trip = user?.trips.find(t2 => t2.id === openTripId);
     if (trip && $('#geo-bar')) renderGeoBar(trip);
   });
+}
+
+/**
+ * The moment the position lands.
+ *
+ * Finding you can take a few seconds, so the arrival needs marking or it
+ * reads as nothing having happened — which is exactly how the old
+ * silence was reported. On the map, the view travels to the dot and a
+ * ring closes on it. Off the map, there is nothing to travel to, and
+ * the honest thing is to say where the user actually is.
+ */
+function announceFix(pos) {
+  if (!onMap(pos.lat, pos.lon)) {
+    toastInfo(t('geo.notHere', { km: formatNumber(kmFromScotland(pos.lat, pos.lon)) }), '🌍');
+    return;
+  }
+
+  const dots = [...document.querySelectorAll('.user-location')];
+  dots.forEach(dot => {
+    dot.classList.remove('is-found');
+    void dot.getBoundingClientRect();      // restart it on a second fix
+    dot.classList.add('is-found');
+    setTimeout(() => dot.classList.remove('is-found'), 2200);
+  });
+
+  // Full screen can go there and stay — that is what its zoom is for.
+  // An inline map has to come back, so it pushes in and out instead.
+  if (!focusViewerOn(pos.lat, pos.lon, 7)) {
+    const stage = currentView === 'build' ? $('#bd-map') : $('#trip-detail');
+    if (stage) {
+      const map = stage.querySelector('.map-stage') || stage;
+      if (!isMostlyOnScreen(map)) map.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      flourishTo(stage, pos.lat, pos.lon);
+    }
+  }
+  toastInfo(t('geo.found', { n: Math.round(pos.accuracy || 0) }), '📍');
+}
+
+function isMostlyOnScreen(el) {
+  const r = el.getBoundingClientRect();
+  return r.top < window.innerHeight * 0.75 && r.bottom > window.innerHeight * 0.25;
 }
 
 function formatMetres(m) {

@@ -37,8 +37,29 @@ let position = null;
 let lastError = null;
 const listeners = new Set();
 
-function emit() {
-  listeners.forEach(fn => fn({ state, position, error: lastError }));
+/**
+ * Our own deadline on the first fix.
+ *
+ * The Geolocation spec has a `timeout` option and it is not enough:
+ * when a browser refuses the request without asking — a blocked site,
+ * a dismissed prompt, a locked-down profile — watchPosition calls
+ * neither callback, ever. Measured: still waiting after 35 seconds with
+ * a 30-second timeout set. So the app waited on a promise that was
+ * never going to be kept, showing a button that pulsed for ever and
+ * said nothing.
+ *
+ * Long enough for a cold GPS lock on a phone, short enough that nobody
+ * decides it is broken first.
+ */
+const FIRST_FIX_MS = 18_000;
+let fixDeadline = null;
+
+function clearDeadline() {
+  if (fixDeadline) { clearTimeout(fixDeadline); fixDeadline = null; }
+}
+
+function emit(extra = {}) {
+  listeners.forEach(fn => fn({ state, position, error: lastError, ...extra }));
 }
 
 export function onLocationChange(fn) {
@@ -78,13 +99,16 @@ export function startTracking({ onArrive = () => {} } = {}) {
 
   tracker = tracker || new GeoTracker({
     onUpdate: pos => {
+      clearDeadline();
+      const first = !position;
       position = pos;
       if (state !== GEO.ON) state = GEO.ON;
       lastError = null;
-      emit();
+      emit({ firstFix: first });
     },
     onEnterFence: (poi, metres) => onArrive(poi, metres),
     onError: err => {
+      clearDeadline();
       // 1 = PERMISSION_DENIED, 2 = POSITION_UNAVAILABLE, 3 = TIMEOUT
       if (err && err.code === 1) { state = GEO.DENIED; setConsent(false); }
       else if (err && err.code === 2) state = GEO.UNAVAILABLE;
@@ -98,10 +122,22 @@ export function startTracking({ onArrive = () => {} } = {}) {
   emit();
   const ok = tracker.start();
   if (!ok) { state = GEO.UNAVAILABLE; emit(); }
+
+  clearDeadline();
+  fixDeadline = setTimeout(() => {
+    fixDeadline = null;
+    if (state !== GEO.ASKING) return;    // a fix or a real error got there first
+    if (tracker) tracker.stop();         // nothing is coming; stop asking the receiver
+    state = GEO.FAILED;
+    lastError = { code: 3, message: 'no first fix' };
+    emit();
+  }, FIRST_FIX_MS);
+
   return ok;
 }
 
 export function stopTracking() {
+  clearDeadline();
   if (tracker) tracker.stop();
   position = null;
   state = GEO.OFF;

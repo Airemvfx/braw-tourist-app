@@ -24,7 +24,7 @@
 // is what actually pulls a crowded region apart.
 // ============================================================
 
-import { unproject, MAP_SIZE } from './scotland-map.js';
+import { project, unproject, onMap, MAP_SIZE } from './scotland-map.js';
 import { t, poiName, poiBlurb, regionName, poiTime } from './i18n.js';
 import { POI_BY_ID } from './data.js';
 
@@ -182,6 +182,50 @@ function reset() {
   apply();
 }
 
+/**
+ * Glide the view to a point instead of jumping to it.
+ *
+ * A cut leaves you asking where you have been put; watching the map
+ * travel there answers it on the way. Eased in and out, and short —
+ * this is a transition, not a scenic flight.
+ */
+let flight = null;
+
+function flyTo(cx, cy, zoom, ms = 900) {
+  if (!host) return;
+  if (flight) cancelAnimationFrame(flight);
+
+  const from = { x: vb.x + vb.w / 2, y: vb.y + vb.h / 2, z: zoomOf() };
+  const to = { x: cx, y: cy, z: Math.max(fitZoom(), Math.min(MAX_ZOOM, zoom)) };
+
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    setView(to.x, to.y, to.z);
+    apply();
+    return;
+  }
+
+  const start = performance.now();
+  const step = now => {
+    const p = Math.min(1, (now - start) / ms);
+    const e = p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
+    // Zoom is interpolated geometrically: doubling is one step whether
+    // it happens at 2x or at 12x, so the movement feels even throughout.
+    const z = from.z * Math.pow(to.z / from.z, e);
+    setView(from.x + (to.x - from.x) * e, from.y + (to.y - from.y) * e, z);
+    apply();
+    flight = p < 1 ? requestAnimationFrame(step) : null;
+  };
+  flight = requestAnimationFrame(step);
+}
+
+/** Centre the open viewer on a real position, if it has one on the map. */
+export function focusViewerOn(lat, lon, zoom = 6) {
+  if (!host || !onMap(lat, lon)) return false;
+  const [x, y] = project(lon, lat);
+  flyTo(x, y, zoom);
+  return true;
+}
+
 // ------------------------------------------------------------------
 // Google Maps
 // ------------------------------------------------------------------
@@ -308,6 +352,7 @@ export function openMapViewer({ html, title = '', focus = null, onPicked = null 
 
 export function closeMapViewer() {
   if (!host) return;
+  if (flight) { cancelAnimationFrame(flight); flight = null; }
   host.remove();
   document.body.classList.remove('mapfs-open');
   host = null; svg = null; vb = null;

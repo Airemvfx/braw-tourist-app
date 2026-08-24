@@ -111,6 +111,110 @@ async function openTrip(ctx) {
     consentStored: localStorage.getItem('braw_geo_v1'),
   })).then(JSON.stringify));
 
+  // ================================================================
+  // The paths a mocked happy path never reaches.
+  //
+  // All three of these were live bugs, and none of them could be seen
+  // from a test that granted permission and stood in Scotland.
+  // ================================================================
+  let failures = 0;
+  const ok = (cond, what) => {
+    console.log(`  ${cond ? '\u2713' : '\u2717'} ${what}`);
+    if (!cond) failures++;
+  };
+
+  console.log('\n-- refused permission must not hang for ever --');
+  //
+  // watchPosition calls neither callback when a browser refuses without
+  // asking — not even after its own timeout. Measured: still waiting at
+  // 35s with a 30s timeout set. The app has its own deadline now.
+  //
+  // Note the context: no `permissions` key at all. An explicit
+  // `permissions: []` makes Chromium deny outright, which always worked
+  // — the silence only happens when the browser neither grants nor
+  // refuses, which is what a dismissed prompt or a switched-off system
+  // location service does on a phone.
+  {
+    const ctx = await b.newContext({});
+    const q = await openTrip(ctx);
+    await q.locator('[data-map-gps="trip"]').click(); await q.waitForTimeout(250);
+    await q.locator('#geo-yes').click();
+
+    await q.waitForTimeout(3000);
+    const early = await q.evaluate(async () => (await import('/js/location.js')).locationState().state);
+    ok(early === 'asking', `it is still looking after 3s (${early})`);
+
+    await q.waitForTimeout(18000);
+    const late = await q.evaluate(async () => {
+      const { locationState } = await import('/js/location.js');
+      return {
+        state: locationState().state,
+        problem: document.querySelector('.geo-problem')?.textContent.trim() || '',
+        btn: document.querySelector('[data-map-gps="trip"]')?.className || '',
+      };
+    });
+    ok(late.state === 'failed', `it gives up rather than pulsing for ever (${late.state})`);
+    ok(late.problem.length > 20, `and says what to do about it ("${late.problem.slice(0, 60)}...")`);
+    ok(/is-problem/.test(late.btn), 'the button shows the trouble');
+    ok(!/is-busy/.test(late.btn), 'and stops looking busy');
+    await q.close();
+  }
+
+  console.log('\n-- somewhere that is not Scotland --');
+  //
+  // The dot used to be clamped to the map's edge, which from Warsaw put
+  // a faint mark in the bottom-right corner: indistinguishable from the
+  // feature being broken, which is how it was reported.
+  {
+    const ctx = await b.newContext({ permissions: ['geolocation'],
+      geolocation: { latitude: 52.2297, longitude: 21.0122, accuracy: 25 } });
+    const q = await openTrip(ctx);
+    await q.locator('[data-map-gps="trip"]').click(); await q.waitForTimeout(250);
+    await q.locator('#geo-yes').click(); await q.waitForTimeout(2500);
+
+    const r = await q.evaluate(async () => {
+      const { locationState } = await import('/js/location.js');
+      return {
+        state: locationState().state,
+        dot: !!document.querySelector('#trip-detail .user-location'),
+        problem: document.querySelector('.geo-problem')?.textContent.trim() || '',
+      };
+    });
+    ok(r.state === 'on', 'the fix still arrives');
+    ok(!r.dot, 'but no dot is planted in the corner of the map');
+    ok(/\d/.test(r.problem) && r.problem.length > 30,
+      `it explains, with the distance ("${r.problem.slice(0, 70)}...")`);
+    await q.close();
+  }
+
+  console.log('\n-- finding you is marked, not silent --');
+  {
+    const ctx = await b.newContext({ permissions: ['geolocation'],
+      geolocation: { latitude: 56.8198, longitude: -5.1052, accuracy: 18 } });
+    const q = await openTrip(ctx);
+    const box = () => q.evaluate(() => document.querySelector('#trip-detail svg.scotmap')?.getAttribute('viewBox'));
+    const rest = await box();
+
+    await q.locator('[data-map-gps="trip"]').click(); await q.waitForTimeout(250);
+    await q.locator('#geo-yes').click();
+
+    const frames = [];
+    for (let i = 0; i < 12; i++) { await q.waitForTimeout(200); frames.push(await box()); }
+    const moved = frames.filter(v => v && v !== rest);
+    ok(moved.length >= 3, `the map pushes in on the position (${moved.length} frames moved)`);
+
+    await q.waitForTimeout(1600);
+    ok(await box() === rest, 'and comes all the way back to the whole route');
+    ok(await q.evaluate(() => !!document.querySelector('#trip-detail .user-location')),
+      'leaving the dot where you are');
+    ok(await q.evaluate(() => !!document.querySelector('#trip-detail .ul-lock')),
+      'with a ring to have closed on it');
+    await q.close();
+  }
+
   console.log('\nERRORS:', errs.length ? errs : 'none');
   await b.close();
+  if (errs.length) failures++;
+  console.log(failures ? `\n${failures} failed` : '\ngeo: all good');
+  process.exit(failures ? 1 : 0);
 })();

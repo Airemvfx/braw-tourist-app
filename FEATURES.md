@@ -95,6 +95,15 @@ Serve the folder with any static server and open `index.html`
   560×730 a phone wasted about four tenths of its display on empty sea; and it opens
   framed on the journey, so a two-day trip round Aberdeenshire no longer opens over the
   North Sea.
+- **Live location** from a third button on the map toolbar. A coarse fix is asked for
+  first and refined by the high-accuracy watch, so a dot appears in about a second
+  instead of waiting on a GPS lock. When it lands, the map pushes in on the position and
+  back out — full screen goes there and stays — with a ring closing on the dot.
+- The app keeps **its own deadline** on the first fix. `watchPosition` calls neither
+  callback when a browser refuses without asking, not even after its own timeout, so the
+  button used to pulse for ever and say nothing.
+- Outside Scotland it **says so, with the distance**, rather than clamping the dot to the
+  corner of the map — which is what it used to do, and was indistinguishable from broken.
 - **Open in Google Maps**, from the map or from any single location. The current centre
   and scale are converted to Google's zoom levels, and the link is kept current as you
   move so copying it or opening it in a new tab gets where you are now.

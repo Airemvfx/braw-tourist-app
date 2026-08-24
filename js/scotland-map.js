@@ -37,6 +37,21 @@ export function unproject(x, y) {
 /** The map's own dimensions, for anything that has to reason about its frame. */
 export const MAP_SIZE = { W, H, ...BOUNDS };
 
+/** Is this position somewhere the map actually covers? */
+export function onMap(lat, lon) {
+  return lat >= BOUNDS.latMin && lat <= BOUNDS.latMax
+      && lon >= BOUNDS.lonMin && lon <= BOUNDS.lonMax;
+}
+
+/** Rough kilometres from a position to the middle of Scotland. */
+export function kmFromScotland(lat, lon) {
+  const cLat = (BOUNDS.latMin + BOUNDS.latMax) / 2;
+  const cLon = (BOUNDS.lonMin + BOUNDS.lonMax) / 2;
+  const dLat = (lat - cLat) * 111;
+  const dLon = (lon - cLon) * 111 * Math.cos((cLat * Math.PI) / 180);
+  return Math.round(Math.hypot(dLat, dLon));
+}
+
 export const TERRAIN_ID = 'braw-terrain';
 
 /**
@@ -174,9 +189,14 @@ export function updateUserDot(scope, userPos) {
 
   if (!userPos || !userPos.lat) { if (g) g.remove(); return; }
 
-  const lat = Math.max(BOUNDS.latMin, Math.min(BOUNDS.latMax, userPos.lat));
-  const lon = Math.max(BOUNDS.lonMin, Math.min(BOUNDS.lonMax, userPos.lon));
-  const [x, y] = project(lon, lat);
+  // Off the map there is nowhere honest to put the dot. It used to be
+  // clamped to the frame, which on a phone in Warsaw meant a faint mark
+  // pinned in the bottom-right corner — indistinguishable from the
+  // feature being broken, which is how it was reported. Say nothing on
+  // the map instead, and let the caller explain in words.
+  if (!onMap(userPos.lat, userPos.lon)) { if (g) g.remove(); return; }
+
+  const [x, y] = project(userPos.lon, userPos.lat);
   const pxPerM = (W / (BOUNDS.lonMax - BOUNDS.lonMin)) / 111_000;
   const accR = Math.min(40, Math.max(6, (userPos.accuracy || 50) * pxPerM));
 
@@ -184,7 +204,7 @@ export function updateUserDot(scope, userPos) {
     g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     g.setAttribute('class', 'user-location');
     g.innerHTML = `<circle class="ul-accuracy"/><circle class="ul-pulse" r="9"/>` +
-                  `<circle class="ul-dot" r="5.5"/><title></title>`;
+                  `<circle class="ul-lock"/><circle class="ul-dot" r="5.5"/><title></title>`;
     svg.appendChild(g);           // last child: on top of the route and pins
   }
   // Record the anchor as well as applying it, so a zoomed viewer can
@@ -201,9 +221,56 @@ export function updateUserDot(scope, userPos) {
 
   // Off the edge of Scotland the dot would otherwise sit on the frame
   // pretending to be a position. Say so instead.
-  const inBounds = userPos.lat >= BOUNDS.latMin && userPos.lat <= BOUNDS.latMax &&
-                   userPos.lon >= BOUNDS.lonMin && userPos.lon <= BOUNDS.lonMax;
-  g.classList.toggle('is-offmap', !inBounds);
+}
+
+/**
+ * A brief push-in on a position, and back out again.
+ *
+ * The inline maps have a fixed frame — the whole route is the point, so
+ * they cannot simply zoom to you and stay there. But a fix can take
+ * several seconds to arrive, and by the time it does the eye has moved
+ * on; a dot quietly appearing somewhere is easily missed. So the camera
+ * travels in to where you are, holds for a moment, and comes back. The
+ * movement is what carries the eye to the spot.
+ *
+ * There and back on one curve — sin(πp) runs 0 → 1 → 0 — so the view
+ * ends exactly where it started with no need to restore anything.
+ */
+const flourishing = new WeakMap();
+
+export function flourishTo(scope, lat, lon, { ms = 1700, zoom = 3.4 } = {}) {
+  const svg = scope && scope.querySelector('svg.scotmap');
+  if (!svg || !onMap(lat, lon)) return false;
+  try {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return false;
+  } catch { /* no matchMedia: carry on */ }
+
+  const running = flourishing.get(svg);
+  if (running) cancelAnimationFrame(running);
+
+  const [tx, ty] = project(lon, lat);
+  const tw = W / zoom;
+  const th = H / zoom;
+  // Keep the close-up inside the map, so it never pushes in on blank sea
+  // beyond the frame just because the position is near an edge.
+  const toX = Math.max(0, Math.min(W - tw, tx - tw / 2));
+  const toY = Math.max(0, Math.min(H - th, ty - th / 2));
+
+  const start = performance.now();
+  const step = now => {
+    const p = Math.min(1, (now - start) / ms);
+    // Smooth the there-and-back so it eases at both ends and at the top.
+    const k = Math.sin(Math.PI * p) ** 1.4;
+    const x = toX * k;
+    const y = toY * k;
+    const w = W + (tw - W) * k;
+    const h = H + (th - H) * k;
+    svg.setAttribute('viewBox', `${x.toFixed(2)} ${y.toFixed(2)} ${w.toFixed(2)} ${h.toFixed(2)}`);
+    if (p < 1) flourishing.set(svg, requestAnimationFrame(step));
+    else { flourishing.delete(svg); svg.setAttribute('viewBox', `0 0 ${W} ${H}`); }
+  };
+  flourishing.set(svg, requestAnimationFrame(step));
+  return true;
 }
 
 const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
@@ -359,12 +426,9 @@ export function renderMap(stops = [], start = null, userPos = null, opts = {}) {
     : '';
 
   // Live user location dot
-  const userDot = userPos && userPos.lat
+  const userDot = userPos && userPos.lat && onMap(userPos.lat, userPos.lon)
     ? (() => {
-        // Clamp to map bounds before projecting
-        const clampedLat = Math.max(BOUNDS.latMin, Math.min(BOUNDS.latMax, userPos.lat));
-        const clampedLon = Math.max(BOUNDS.lonMin, Math.min(BOUNDS.lonMax, userPos.lon));
-        const [ux, uy] = project(clampedLon, clampedLat);
+        const [ux, uy] = project(userPos.lon, userPos.lat);
         // accuracy circle radius in SVG units (~pixels per km)
         const pxPerM = (W / (BOUNDS.lonMax - BOUNDS.lonMin)) / 111_000;
         const accR = Math.min(40, Math.max(6, (userPos.accuracy || 50) * pxPerM));
@@ -372,6 +436,7 @@ export function renderMap(stops = [], start = null, userPos = null, opts = {}) {
         <g class="user-location" ${pin(ux, uy)}>
           <circle class="ul-accuracy" r="${accR.toFixed(1)}"/>
           <circle class="ul-pulse" r="9"/>
+          <circle class="ul-lock"/>
           <circle class="ul-dot" r="5.5"/>
           <title>${esc(t('map.yourLocation', { n: Math.round(userPos.accuracy || 0) }))}</title>
         </g>`;
