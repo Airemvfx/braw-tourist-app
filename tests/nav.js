@@ -151,6 +151,47 @@ const EXPECTED = 10;   // nav destinations
     await p.waitForTimeout(400);
     ok(await p.evaluate(() => getComputedStyle(document.getElementById('hdr-nav')).visibility) === 'hidden',
       'and so does tapping away from it');
+
+    // The leaderboard was a six-column table squeezed onto a phone: the
+    // XP wrapped and ran out past the card, and the headings stopped
+    // sitting above what they labelled.
+    await p.evaluate(() => document.querySelector('.nav-btn[data-view="leaderboard"]').click());
+    await p.waitForTimeout(600);
+    const lb = await p.evaluate(() => {
+      const card = document.querySelector('.lb-card').getBoundingClientRect();
+      const spill = [];
+      const clipped = [];
+      let wrapped = 0;
+      for (const row of document.querySelectorAll('.lb-row')) {
+        for (const cell of row.children) {
+          const r = cell.getBoundingClientRect();
+          if (!r.width) continue;
+          if (r.right > card.right + 0.5 || r.left < card.left - 0.5) spill.push(cell.textContent.trim().slice(0, 16));
+        }
+        // The name cell is two lines by design; these two are not.
+        for (const one of row.querySelectorAll('.lb-xp, .lb-nm')) {
+          if (one.getBoundingClientRect().height > 30) wrapped++;
+        }
+        // And the folded line must fit rather than trail off in an ellipsis.
+        for (const meta of row.querySelectorAll('.lb-meta')) {
+          if (meta.scrollWidth > meta.clientWidth + 1) clipped.push(meta.textContent.trim());
+        }
+      }
+      const you = document.querySelector('.lb-you');
+      return {
+        spill, wrapped, clipped,
+        pageScroll: document.documentElement.scrollWidth,
+        vw: innerWidth,
+        xpVisible: Boolean(you?.querySelector('.lb-xp')?.textContent.trim()),
+        metaVisible: getComputedStyle(you.querySelector('.lb-meta')).display !== 'none',
+      };
+    });
+    ok(lb.spill.length === 0, `nothing runs out of the leaderboard card (${lb.spill.join(', ') || 'nothing'})`);
+    ok(lb.pageScroll <= lb.vw + 1, `and the page does not scroll sideways (${lb.pageScroll} vs ${lb.vw})`);
+    ok(lb.wrapped === 0, `neither the name nor the XP wraps (${lb.wrapped})`);
+    ok(lb.clipped.length === 0, `and the folded line fits (${lb.clipped[0] || 'all fit'})`);
+    ok(lb.xpVisible, 'your XP is still shown');
+    ok(lb.metaVisible, 'with level, places and quests folded under the name');
   }
 
   // ---------------------------------------------------------------

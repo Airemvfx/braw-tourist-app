@@ -188,6 +188,15 @@ const EN = {
   'trips.card.progress': '{done} of {total} locations visited',
   'trips.cta.add': 'Add a new journey',
   'trips.card.open': 'Open',
+  'trips.card.delete': 'Delete this quest',
+  'trips.delete.aria': 'Delete {title}',
+  'trips.delete.title': 'Delete this quest?',
+  'trips.delete.potential': '{xp} XP still on offer here goes with it.',
+  'trips.delete.onlyHere': '{n} locations you have only visited on this quest stop being counted.',
+  'trips.delete.keeps': 'The {xp} XP you have already earned stays.',
+  'trips.delete.type': 'Type it here to confirm',
+  'trips.delete.confirm': 'Delete for good',
+  'trips.deleted': 'Deleted {title}',
 
   // ---- achievements ----
   'badges.title': 'Achievements',
@@ -232,6 +241,7 @@ const EN = {
   'lb.col.level': 'Level',
   'lb.col.locations': 'Locations',
   'lb.col.quests': 'Quests done',
+  'lb.meta': 'Lvl {level} · 📍 {places} · 🏁 {quests}',
   'lb.col.xp': 'XP',
   'lb.you': '· YOU',
   'lb.note.first': 'You sit at the top o’ the mountain. Defend it!',
@@ -544,7 +554,7 @@ const EN = {
   'map.key.aria': 'What the colours on the map mean',
 
   // ---- journey builder ----
-  'nav.build': 'Build',
+  'nav.build': 'Map',
   'build.title': 'Craft your own <em>journey</em>',
   'build.sub': 'Every location in Scotland, yours to arrange. Filter the map, add the stops you want, and watch the distance, timing and kit list follow.',
   'build.startLabel': 'Starting from',
@@ -894,6 +904,15 @@ const PL = {
   'trips.card.progress': 'Odwiedzono {done} z {total} miejsc',
   'trips.cta.add': 'Dodaj nową wyprawę',
   'trips.card.open': 'Otwórz',
+  'trips.card.delete': 'Usuń tę wyprawę',
+  'trips.delete.aria': 'Usuń {title}',
+  'trips.delete.title': 'Usunąć tę wyprawę?',
+  'trips.delete.potential': 'Przepadnie {xp} PD, które wciąż tu czeka.',
+  'trips.delete.onlyHere': '{n} miejsc odwiedzonych tylko na tej wyprawie przestanie się liczyć.',
+  'trips.delete.keeps': 'Zdobyte już {xp} PD zostaje.',
+  'trips.delete.type': 'Wpisz go tutaj, aby potwierdzić',
+  'trips.delete.confirm': 'Usuń na zawsze',
+  'trips.deleted': 'Usunięto: {title}',
 
   // ---- achievements ----
   'badges.title': 'Osiągnięcia',
@@ -938,6 +957,7 @@ const PL = {
   'lb.col.level': 'Poziom',
   'lb.col.locations': 'Miejsca',
   'lb.col.quests': 'Ukończone wyprawy',
+  'lb.meta': 'Poz. {level} · 📍 {places} · 🏁 {quests}',
   'lb.col.xp': 'PD',
   'lb.you': '· TY',
   'lb.note.first': 'Siedzisz na samym szczycie. Broń go!',
@@ -1247,7 +1267,7 @@ const PL = {
   'map.key.aria': 'Co oznaczają kolory na mapie',
 
   // ---- kreator wyprawy ----
-  'nav.build': 'Kreator',
+  'nav.build': 'Mapa',
   'build.title': 'Zaprojektuj <em>własną</em> wyprawę',
   'build.sub': 'Wszystkie miejsca w Szkocji do Twojej dyspozycji. Filtruj mapę, dodawaj przystanki, a dystans, czas i lista sprzętu policzą się same.',
   'build.startLabel': 'Start z',

@@ -20,7 +20,7 @@ import {
   generateTrip, tripProgress, tripStopIds, tripTitle, paceLabel, distKm,
   wildcardsFor, addStops, poisInScope,
 } from './planner.js';
-import { renderMap, mapKeyHTML, updateUserDot, project, unproject, MAP_SIZE } from './scotland-map.js';
+import { renderMap, mapKeyHTML, updateUserDot, mountTerrain, project, unproject, MAP_SIZE } from './scotland-map.js';
 import { openMapViewer, googleMapsUrl, googlePlaceUrl, renderedMapWidth } from './map-viewer.js';
 import { leg as travelLeg, ferriesFor, ferryInfo } from './routing.js';
 import {
@@ -363,8 +363,6 @@ function seedDemoProgress() {
 
 function renderHeader() {
   const { level, into, need } = LEVELS.fromXP(user.xp);
-  $('#hdr-avatar').textContent = user.name[0].toUpperCase();
-  $('#hdr-name').textContent = user.name;
   $('#hdr-level').textContent = t('hdr.level', { level });
   $('#hdr-title').textContent = levelTitle(level);
   $('#hdr-xp-fill').style.width = `${Math.round((into / need) * 100)}%`;
@@ -379,6 +377,11 @@ const VIEWS = ['plan', 'build', 'trips', 'trip', 'library', 'badges', 'play', 'l
 
 function switchView(name) {
   currentView = name;
+  // Arriving at the profile plays its entrance. Set here rather than in
+  // the renderer because that runs again whenever a photo count or a
+  // storage reading comes back, and a page that re-animates under you
+  // every few seconds is a page nobody can read.
+  if (name === 'profile') profileEntrance = true;
   for (const v of VIEWS) $(`#view-${v}`).hidden = v !== name;
   $$('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.view === name));
   const renderers = { plan: renderPlan, build: renderBuild, trips: renderTrips, trip: renderTripDetail, library: renderLibrary, safety: renderSafety, badges: renderBadges, play: renderGame, leaderboard: renderLeaderboard, store: renderStore, profile: renderProfile };
@@ -396,6 +399,7 @@ function wireNav() {
     user = null; draftTrip = null; openTripId = null;
     showAuth();
   });
+  $('#hdr-xp-btn').addEventListener('click', () => switchView('profile'));
   wireMenu();
 }
 
@@ -798,7 +802,7 @@ function renderTrips() {
     const pr = tripProgress(trip);
     const done = !!trip.completedAt;
     return `
-    <button class="trip-card card ${done ? 'is-complete' : ''}" data-trip="${trip.id}">
+    <article class="trip-card card ${done ? 'is-complete' : ''}" data-trip="${trip.id}">
       <div class="tc-top">
         <span class="tc-icon">${done ? '🏁' : '🛤️'}</span>
         <div class="tc-names">
@@ -816,18 +820,151 @@ function renderTrips() {
         <div class="tcp-fill" style="width:${pr.pct}%"></div>
       </div>
       <div class="tc-foot">
-        <span>${t('trips.card.progress', { done: pr.done, total: pr.total })}</span>
-        <!-- Looks like a button and is not one: the whole card is already
-             the button, and nesting a second inside it is invalid and
-             would swallow its own click. This is the affordance only. -->
-        <span class="tc-open" aria-hidden="true">${t('trips.card.open')} <span class="tc-arrow">→</span></span>
+        <span class="tc-count">${t('trips.card.progress', { done: pr.done, total: pr.total })}</span>
+        <!-- The card is a plain <article> so these can be real buttons.
+             It was a <button>, which meant nothing inside it could be
+             one — a delete control has to have its own click. Keyboard
+             users reach the quest through Open; the card-wide click is
+             an extra for pointers, not the only way in. -->
+        <span class="tc-actions">
+          <button type="button" class="tc-open" data-open="${trip.id}">${t('trips.card.open')} <span class="tc-arrow">→</span></button>
+          <button type="button" class="tc-del" data-del="${trip.id}"
+                  title="${esc(t('trips.card.delete'))}"
+                  aria-label="${esc(t('trips.delete.aria', { title: tripTitle(trip) }))}">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M4 7h16M10 4h4M9 7v12M15 7v12M6 7l1 13h10l1-13"
+                    fill="none" stroke="currentColor" stroke-width="1.8"
+                    stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+        </span>
       </div>
-    </button>`;
+    </article>`;
   }).join('');
 
-  host.querySelectorAll('.trip-card').forEach(c =>
-    c.addEventListener('click', () => { openTripId = c.dataset.trip; switchView('trip'); })
-  );
+  const open = id => { openTripId = id; switchView('trip'); };
+  host.querySelectorAll('.trip-card').forEach(c => {
+    c.addEventListener('click', e => {
+      if (e.target.closest('.tc-actions')) return;   // its own buttons handle it
+      open(c.dataset.trip);
+    });
+  });
+  host.querySelectorAll('[data-open]').forEach(b =>
+    b.addEventListener('click', () => open(b.dataset.open)));
+  host.querySelectorAll('[data-del]').forEach(b =>
+    b.addEventListener('click', () => confirmDeleteTrip(b.dataset.del)));
+}
+
+/**
+ * What deleting a quest actually costs.
+ *
+ * XP already earned is kept — those places were visited, and clawing
+ * back points could drop somebody a level for tidying up their list.
+ * What goes is the XP still on offer, and any location visited *only*
+ * on this quest, which stops being counted anywhere. Both are worth
+ * saying out loud before the fact rather than discovering afterwards.
+ */
+function tripDeletionCost(trip) {
+  const ids = tripStopIds(trip);
+  const xpOf = id => POI_BY_ID[id]?.xp || 0;
+
+  const potential = ids.filter(id => !trip.visited[id]).reduce((n, id) => n + xpOf(id), 0)
+    + (trip.completedAt ? 0 : XP_EVENTS.COMPLETE_TRIP);
+
+  const earned = XP_EVENTS.CREATE_TRIP
+    + ids.filter(id => trip.visited[id]).reduce((n, id) => n + xpOf(id), 0)
+    + (trip.completedAt ? XP_EVENTS.COMPLETE_TRIP : 0);
+
+  const elsewhere = new Set();
+  for (const other of user.trips) {
+    if (other.id === trip.id) continue;
+    for (const id of Object.keys(other.visited)) elsewhere.add(id);
+  }
+  const onlyHere = ids.filter(id => trip.visited[id] && !elsewhere.has(id)).length;
+
+  return { potential, earned, onlyHere };
+}
+
+// No vowels, so a code can never come out as a word, and none of the
+// letters that get misread in a hurry — I/L for 1, O for 0, Q for O.
+const CODE_LETTERS = 'BCDFGHJKMNPRSTVWXZ';
+
+function deletionCode() {
+  let out = '';
+  for (let i = 0; i < 4; i++) out += CODE_LETTERS[Math.floor(Math.random() * CODE_LETTERS.length)];
+  return out;
+}
+
+/**
+ * Deleting a quest is the one destructive thing in the app, and a
+ * mis-tap on a phone should not be able to do it. Typing a short code
+ * costs a couple of seconds and cannot happen by accident — which a
+ * second "are you sure?" button, tapped in the same rhythm as the
+ * first, very much can.
+ */
+function confirmDeleteTrip(tripId) {
+  const trip = user.trips.find(t2 => t2.id === tripId);
+  if (!trip) return;
+  const cost = tripDeletionCost(trip);
+  const code = deletionCode();
+
+  const wrap = document.createElement('div');
+  wrap.className = 'geo-consent del-modal';
+  wrap.innerHTML = `
+    <div class="geo-consent-card del-card" role="dialog" aria-modal="true" aria-labelledby="del-h">
+      <h3 id="del-h">${t('trips.delete.title')}</h3>
+      <p class="del-what">${esc(tripTitle(trip))}</p>
+      <ul class="del-losses">
+        ${cost.potential ? `<li class="loss">${esc(t('trips.delete.potential', { xp: formatNumber(cost.potential) }))}</li>` : ''}
+        ${cost.onlyHere ? `<li class="loss">${esc(t('trips.delete.onlyHere', { n: cost.onlyHere }))}</li>` : ''}
+        <li class="keep">${esc(t('trips.delete.keeps', { xp: formatNumber(cost.earned) }))}</li>
+      </ul>
+      <p class="del-code" aria-hidden="true">${code}</p>
+      <label class="field del-field">
+        <span>${esc(t('trips.delete.type'))}</span>
+        <input type="text" id="del-input" autocomplete="off" autocapitalize="characters"
+               spellcheck="false" maxlength="4" aria-describedby="del-h">
+      </label>
+      <div class="geo-consent-actions">
+        <button class="btn btn-danger btn-sm" id="del-go" disabled>${t('trips.delete.confirm')}</button>
+        <button class="btn btn-ghost btn-sm" id="del-no">${t('geo.notNow')}</button>
+      </div>
+    </div>`;
+
+  document.body.appendChild(wrap);
+  const close = () => { wrap.remove(); document.removeEventListener('keydown', onEsc); };
+  const onEsc = e => { if (e.key === 'Escape') close(); };
+  document.addEventListener('keydown', onEsc);
+
+  wrap.querySelector('#del-no').addEventListener('click', close);
+  wrap.addEventListener('click', e => { if (e.target === wrap) close(); });
+
+  const input = wrap.querySelector('#del-input');
+  const go = wrap.querySelector('#del-go');
+  input.addEventListener('input', () => {
+    input.value = input.value.toUpperCase();
+    const ok = input.value === code;
+    go.disabled = !ok;
+    wrap.querySelector('.del-field').classList.toggle('is-ready', ok);
+  });
+  input.addEventListener('keydown', e => { if (e.key === 'Enter' && !go.disabled) go.click(); });
+
+  go.addEventListener('click', () => {
+    close();
+    deleteTrip(tripId);
+  });
+  input.focus();
+}
+
+function deleteTrip(tripId) {
+  const i = user.trips.findIndex(t2 => t2.id === tripId);
+  if (i < 0) return;
+  const [gone] = user.trips.splice(i, 1);
+  if (openTripId === tripId) openTripId = null;
+  store.save();
+  toastInfo(t('trips.deleted', { title: tripTitle(gone) }), '🗑️');
+  renderTrips();
+  renderHeader();
 }
 
 // ============================================================
@@ -2297,9 +2434,18 @@ function renderLeaderboard() {
   const you = { name: user.name, xp: user.xp, visited: stats.visitedCount, trips: stats.tripsCompleted, you: true, colour: '#3ee08f' };
   const rows = [...RIVALS, you].sort((a, b) => b.xp - a.xp);
 
+  // Every cell is classed so the phone layout can fold three of them
+  // into one line of small print under the name. Six columns of a table
+  // do not fit 390px: the XP wrapped, escaped the card, and the headings
+  // stopped lining up with what they labelled.
   $('#leaderboard-table').innerHTML = `
     <div class="lb-row lb-head">
-      <span>${t('lb.col.rank')}</span><span>${t('lb.col.explorer')}</span><span>${t('lb.col.level')}</span><span>${t('lb.col.locations')}</span><span>${t('lb.col.quests')}</span><span>${t('lb.col.xp')}</span>
+      <span class="lb-rank">${t('lb.col.rank')}</span>
+      <span class="lb-name">${t('lb.col.explorer')}</span>
+      <span class="lb-level">${t('lb.col.level')}</span>
+      <span class="lb-locs">${t('lb.col.locations')}</span>
+      <span class="lb-quests">${t('lb.col.quests')}</span>
+      <span class="lb-xp">${t('lb.col.xp')}</span>
     </div>` +
     rows.map((r, i) => {
       const lvl = LEVELS.fromXP(r.xp).level;
@@ -2307,10 +2453,18 @@ function renderLeaderboard() {
       return `
       <div class="lb-row ${r.you ? 'lb-you' : ''}">
         <span class="lb-rank">${medal}</span>
-        <span class="lb-name"><i class="lb-avatar" style="background:${r.colour}">${r.name[0].toUpperCase()}</i>${esc(r.name)}${r.you ? ` <b>${t('lb.you')}</b>` : ''}</span>
-        <span>${t('hdr.level', { level: lvl })} <small>${esc(levelTitle(lvl))}</small></span>
-        <span>${r.visited}</span>
-        <span>${r.trips}</span>
+        <span class="lb-name">
+          <i class="lb-avatar" style="background:${r.colour}">${r.name[0].toUpperCase()}</i>
+          <span class="lb-who">
+            <span class="lb-nm">${esc(r.name)}${r.you ? ` <b>${t('lb.you')}</b>` : ''}</span>
+            <span class="lb-meta">${esc(t('lb.meta', {
+              level: lvl, places: r.visited, quests: r.trips,
+            }))}</span>
+          </span>
+        </span>
+        <span class="lb-level">${t('hdr.level', { level: lvl })} <small>${esc(levelTitle(lvl))}</small></span>
+        <span class="lb-locs">${r.visited}</span>
+        <span class="lb-quests">${r.trips}</span>
         <span class="lb-xp">${formatNumber(r.xp)} ✦</span>
       </div>`;
     }).join('');
@@ -2662,6 +2816,7 @@ async function submitOrder() {
 
 let photoCount = 0;
 let health = null;          // last storageHealth() result, for the vault card
+let profileEntrance = false;// play the arrival animation on the next render
 
 function renderProfile() {
   const s = userStats(user);
@@ -2737,6 +2892,74 @@ function renderProfile() {
   wireDataControls();
   wireVaultControls();
   wireAccountControls();
+
+  if (profileEntrance) { profileEntrance = false; playProfileEntrance(); }
+}
+
+// ============================================================
+// The profile's entrance
+//
+// This is the one screen that is about the person rather than about
+// Scotland, and it should feel like arriving somewhere. The cards come
+// up in sequence, the XP bar fills from empty, and the totals count to
+// where they are — so the numbers are watched rather than merely read.
+//
+// All of it is skipped under prefers-reduced-motion: not toned down,
+// skipped, with every element ending exactly where the static layout
+// puts it.
+// ============================================================
+
+const COUNT_MS = 900;
+
+function playProfileEntrance() {
+  const card = $('#profile-card');
+  if (!card) return;
+
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+  card.classList.remove('is-entering');
+  void card.offsetWidth;              // restart the animations on a re-entry
+  card.classList.add('is-entering');
+
+  // The bar grows from nothing to wherever the level sits.
+  const fill = card.querySelector('.profile-hero .progress-fill');
+  if (fill) {
+    const target = fill.style.width;
+    fill.style.width = '0%';
+    requestAnimationFrame(() => requestAnimationFrame(() => { fill.style.width = target; }));
+  }
+
+  countUp(card.querySelectorAll('.stat-n'));
+}
+
+/**
+ * Run each number up to itself.
+ *
+ * Eased rather than linear, so it decelerates into the final figure
+ * instead of stopping dead, and every element is set to its exact text
+ * on the last frame — a count-up that lands on 47 when the answer is 48
+ * is worse than no animation at all.
+ */
+function countUp(nodes) {
+  nodes.forEach((el, i) => {
+    const text = el.textContent.trim();
+    const target = Number(text.replace(/[^\d]/g, ''));
+    if (!Number.isFinite(target) || target <= 0) return;
+
+    const delay = 120 + i * 45;
+    const start = performance.now() + delay;
+    el.textContent = '0';
+
+    const step = now => {
+      if (now < start) { requestAnimationFrame(step); return; }
+      const p = Math.min(1, (now - start) / COUNT_MS);
+      const eased = 1 - Math.pow(1 - p, 3);
+      if (p >= 1) { el.textContent = text; return; }
+      el.textContent = formatNumber(Math.round(target * eased));
+      requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  });
 }
 
 // ============================================================
@@ -3054,6 +3277,10 @@ function renderLanding() {
 document.addEventListener('DOMContentLoaded', () => {
   document.documentElement.lang = getLang();
   initTheme();
+  // The Map menu button references the terrain sprite, and it exists
+  // before any map has been drawn. Idempotent, so calling it early
+  // costs nothing.
+  mountTerrain();
   applyStatic();
   renderLanding();
   wireLanguage();

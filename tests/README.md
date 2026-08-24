@@ -24,11 +24,12 @@ your Playwright install differs.
 | `cloud` | the hand-written Supabase client against a stand-in server: sign-in, one refresh for six parallel requests, conflict detection, upload, server-side pricing, and refusing a `service_role` key |
 | `shop` | the Store: catalogue, calendar builder, print warnings, ordering without an account, both languages |
 | `mapview` | the fullscreen map: it opens framed on the journey and shaped to the screen, pins hold their size while zooming pulls crowded ones apart, dragging pans, tapping opens details, and the Google Maps link tracks the view |
+| `quests` | the quest list: the card is not a button so it can hold real ones, opening by card or by button, and deletion that a wrong code, an empty box, Escape or Cancel will not do |
 | `i18n-parity` | every string exists in both languages with matching placeholders, and every key the app asks for exists at all |
 | `terrain` | the map sprite mounts once, redraws stay cheap, no console errors |
 | `contrast` | every piece of text measured against its real composited background, both themes |
 | `sweep` | every view renders in both themes with no page errors |
-| `nav` | the phone menu: bottom-left button, every destination on screen at once, nothing under the button, toggles and closes; and the header bar returns on a desktop |
+| `nav` | the phone menu and the leaderboard's fit at 320/390px: bottom-left button, every destination on screen at once, nothing under the button, toggles and closes; and the header bar returns on a desktop |
 
 `contrast` composites translucent layers before measuring. An earlier
 version read a 4.5%-alpha wash as solid black and reported confident

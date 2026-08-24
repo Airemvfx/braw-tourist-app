@@ -99,14 +99,30 @@ Serve the folder with any static server and open `index.html`
   and scale are converted to Google's zoom levels, and the link is kept current as you
   move so copying it or opening it in a new tab gets where you are now.
 
+### 4e. Managing quests
+- Cards show a segmented progress bar — one segment per stop — so the bar answers "how
+  many places left?" and not only "what fraction?".
+- A quest can be **deleted**, behind a typed four-letter code. A second "are you sure?"
+  button gets tapped in the same rhythm as the first; typing something cannot happen by
+  accident. The dialog states what is actually lost: the XP still on offer, and any
+  location visited only on that quest. XP already earned is kept — clawing it back could
+  drop somebody a level for tidying their list.
+
 ### 5. Profile & statistics
 - Profile hero with level, rank title and XP-to-next-level bar.
 - 8 stat tiles: locations visited, quests created/completed, castles stormed, drams earned,
   regions explored, peaks bagged, achievements.
 - Recent-activity feed with XP deltas.
+- The page **animates on arrival**: cards rise in sequence, the level bar fills from
+  empty with a sweep of light across it, and every total counts up to itself. Once per
+  visit, not on the background refreshes — and skipped entirely under reduced motion.
 - **Phone navigation** is a hamburger in the bottom-left corner, where the thumb already
   is, opening the whole menu at once instead of a scrolling strip of tabs across the top.
   It is the header's own `<nav>`, relocated — one list of destinations, one active state.
+  My Quests is filled amber so the most-used destination is found without reading, and
+  Map carries the real terrain sprite as its backdrop.
+- The header is down to the level readout — itself the way to the profile — and a
+  labelled Sign out. The avatar and name were a third door to a page with two already.
 
 ### 6. Leaderboard
 - Ranked table of 9 seeded rival explorers + the signed-in user (live position by XP),
