@@ -759,7 +759,7 @@ function renderDraft() {
   wireMapMarkers(box, trip, false);
   wireStopList(box, trip);
   wireMapTools(box, 'draft', {
-    render: () => renderMap(stops, trip.start, null, { idSuffix: 'fs' }),
+    render: () => renderMap(stops, trip.start, locationState().position, { idSuffix: 'fs' }),
     stops, start: trip.start, title: tripTitle(trip),
   });
 }
@@ -810,8 +810,18 @@ function renderTrips() {
         </div>
         ${done ? `<span class="tc-badge">${t('trips.card.completed')}</span>` : `<span class="tc-pct">${pr.pct}%</span>`}
       </div>
-      <div class="progress"><div class="progress-fill" style="width:${pr.pct}%"></div></div>
-      <div class="tc-foot">${t('trips.card.progress', { done: pr.done, total: pr.total })}</div>
+      <!-- Past twenty or so the dividers are thinner than the gaps
+           and the bar reads as hatching, so it goes back to plain. -->
+      <div class="tc-progress" style="--stops:${pr.total > 1 && pr.total <= 20 ? pr.total : 1}">
+        <div class="tcp-fill" style="width:${pr.pct}%"></div>
+      </div>
+      <div class="tc-foot">
+        <span>${t('trips.card.progress', { done: pr.done, total: pr.total })}</span>
+        <!-- Looks like a button and is not one: the whole card is already
+             the button, and nesting a second inside it is invalid and
+             would swallow its own click. This is the affordance only. -->
+        <span class="tc-open" aria-hidden="true">${t('trips.card.open')} <span class="tc-arrow">→</span></span>
+      </div>
     </button>`;
   }).join('');
 
@@ -950,7 +960,7 @@ function renderBuildMap() {
   }) + mapToolsHTML('build');
   $('#bd-key').innerHTML = mapKeyHTML();
   wireMapTools($('#bd-map'), 'build', {
-    render: () => renderMap(stops, bdStart(), null, { idSuffix: 'fs', candidates: cands }),
+    render: () => renderMap(stops, bdStart(), locationState().position, { idSuffix: 'fs', candidates: cands }),
     stops, start: bdStart(), title: t('nav.build'),
     onPicked: id => openBuilderPoi(id),
   });
@@ -1381,7 +1391,53 @@ function mapToolsHTML(id) {
               aria-label="${esc(t('map.fullscreen'))}" title="${esc(t('map.fullscreen'))}">⛶</button>
       <a class="map-tool" data-map-google="${id}" target="_blank" rel="noopener" href="#"
          aria-label="${esc(t('map.google'))}" title="${esc(t('map.google'))}">🌍</a>
+      <button type="button" class="map-tool map-gps" data-map-gps="${id}" aria-pressed="false"
+              aria-label="${esc(t('map.gps'))}" title="${esc(t('map.gps'))}">
+        <span class="mg-ring" aria-hidden="true"></span>
+      </button>
     </div>`;
+}
+
+/**
+ * Switch live location on or off from the map itself.
+ *
+ * The same state as the toggle under the trip map — this is a second
+ * door to one switch, not a second switch. Anything else would let the
+ * two disagree about whether the receiver is running, which on a phone
+ * is a battery drain nobody asked for.
+ */
+function toggleGeoFromMap() {
+  if (locationState().state === GEO.ON) {
+    stopTracking();
+    setConsent(false);
+    return;
+  }
+  if (hasConsented()) beginTracking();
+  else askForLocation();
+}
+
+/** Reflect the live-location state on every GPS button on the page. */
+function syncGeoButtons() {
+  const { state } = locationState();
+  const on = state === GEO.ON;
+  const busy = state === GEO.ASKING;
+  const problem = state === GEO.DENIED || state === GEO.UNAVAILABLE || state === GEO.FAILED;
+
+  $$('[data-map-gps]').forEach(btn => {
+    btn.setAttribute('aria-pressed', String(on));
+    btn.classList.toggle('is-on', on);
+    btn.classList.toggle('is-busy', busy);
+    btn.classList.toggle('is-problem', problem);
+    const key = on ? 'map.gpsOff' : problem ? `geo.${state === GEO.DENIED ? 'denied' : state === GEO.UNAVAILABLE ? 'unavailable' : 'failed'}` : 'map.gps';
+    btn.title = t(key);
+    btn.setAttribute('aria-label', t(key));
+  });
+}
+
+/** Move the live dot on every map currently in the document. */
+function refreshUserDots(pos) {
+  const scopes = [$('#trip-detail'), $('#view-plan'), $('#bd-map'), $('.mapfs')].filter(Boolean);
+  scopes.forEach(scope => updateUserDot(scope, pos));
 }
 
 /**
@@ -1451,6 +1507,10 @@ function wireMapTools(scope, id, { render, stops = [], start = null, title = '',
 
   const stage = scope.querySelector('.map-stage') || gmap.closest('.map-stage');
   gmap.href = googleUrlForStops(stops, start, stage ? renderedMapWidth(stage) : 800);
+
+  const gps = scope.querySelector(`[data-map-gps="${id}"]`);
+  if (gps) gps.addEventListener('click', toggleGeoFromMap);
+  syncGeoButtons();
 }
 
 /**
@@ -1552,8 +1612,11 @@ function renderGeoBar(trip) {
  */
 function wireLocation() {
   onLocationChange(({ position: pos }) => {
+    // Every map on the page, not just the trip's: the builder shows one,
+    // and the full-screen viewer is a third that can be open over either.
+    refreshUserDots(pos);
+    syncGeoButtons();
     if (currentView !== 'trip') return;
-    updateUserDot($('#trip-detail'), pos);
     const trip = user?.trips.find(t2 => t2.id === openTripId);
     if (trip && $('#geo-bar')) renderGeoBar(trip);
   });

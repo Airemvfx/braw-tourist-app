@@ -30,7 +30,11 @@ const parseGoogle = url => {
     executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
     args: ['--no-sandbox', '--disable-setuid-sandbox', '--ignore-certificate-errors'],
   });
-  const ctx = await b.newContext({ viewport: { width: 1180, height: 860 } });
+  const ctx = await b.newContext({
+    viewport: { width: 1180, height: 860 },
+    permissions: ['geolocation'],
+    geolocation: { latitude: 56.8198, longitude: -5.1052, accuracy: 18 },   // Ben Nevis
+  });
   const p = await ctx.newPage();
   const errors = [];
   p.on('pageerror', e => errors.push(String(e)));
@@ -79,6 +83,74 @@ const parseGoogle = url => {
   ok(framed && framed.z >= 5 && framed.z <= 11, `at a sensible zoom (${framed?.z})`);
 
   // ---------------------------------------------------------------
+  console.log('\n-- the GPS button --');
+  //
+  // One switch with two doors: this button and the toggle under the map
+  // drive the same tracking. If they could disagree, one of them would
+  // leave the receiver running after the other said stop.
+  // ---------------------------------------------------------------
+  const gpsBefore = await p.evaluate(() => ({
+    exists: Boolean(document.querySelector('[data-map-gps="trip"]')),
+    pressed: document.querySelector('[data-map-gps="trip"]')?.getAttribute('aria-pressed'),
+    dot: Boolean(document.querySelector('#trip-detail .user-location')),
+  }));
+  ok(gpsBefore.exists, 'there is a third button on the map');
+  ok(gpsBefore.pressed === 'false', 'off to begin with');
+  ok(!gpsBefore.dot, 'and no location on the map');
+
+  // First press explains before the browser is asked.
+  await p.locator('[data-map-gps="trip"]').click();
+  await p.waitForTimeout(300);
+  const consent = await p.evaluate(() => {
+    const c = document.querySelector('.geo-consent-card');
+    return { shown: Boolean(c), heading: c?.querySelector('h3')?.textContent.trim() };
+  });
+  ok(consent.shown, `it asks first, in our own words (${consent.heading})`);
+
+  await p.locator('#geo-yes').click();
+  await p.waitForTimeout(1600);
+
+  const gpsOn = await p.evaluate(() => {
+    const btn = document.querySelector('[data-map-gps="trip"]');
+    const dot = document.querySelector('#trip-detail .user-location');
+    return {
+      pressed: btn?.getAttribute('aria-pressed'),
+      lit: btn?.classList.contains('is-on'),
+      label: btn?.getAttribute('aria-label'),
+      dot: Boolean(dot),
+      at: dot?.getAttribute('transform'),
+      toggle: document.getElementById('geo-toggle')?.getAttribute('aria-pressed'),
+      consent: localStorage.getItem('braw_geo_v1'),
+    };
+  });
+  ok(gpsOn.pressed === 'true' && gpsOn.lit, 'pressing it switches live location on');
+  ok(gpsOn.dot, 'and the dot appears on the map');
+  ok(/translate\(/.test(gpsOn.at || ''), `placed at a real position (${gpsOn.at})`);
+  ok(gpsOn.toggle === 'true', 'the toggle under the map agrees it is on');
+  ok(gpsOn.consent === 'yes', 'and the consent is remembered');
+
+  // Pressing again stops it, everywhere.
+  await p.locator('[data-map-gps="trip"]').click();
+  await p.waitForTimeout(600);
+  const gpsOff = await p.evaluate(() => ({
+    pressed: document.querySelector('[data-map-gps="trip"]')?.getAttribute('aria-pressed'),
+    dot: Boolean(document.querySelector('#trip-detail .user-location')),
+    toggle: document.getElementById('geo-toggle')?.getAttribute('aria-pressed'),
+  }));
+  ok(gpsOff.pressed === 'false' && !gpsOff.dot, 'pressing again switches it off and clears the dot');
+  ok(gpsOff.toggle === 'false', 'and the toggle follows');
+
+  // Back on, so the next section can check it survives into full screen.
+  // Switching off also withdraws the consent — turning it off means no,
+  // not "pause" — so this asks again, exactly as the toggle does.
+  await p.locator('[data-map-gps="trip"]').click();
+  await p.waitForTimeout(300);
+  ok(await p.evaluate(() => Boolean(document.querySelector('.geo-consent-card'))),
+    'switching it off withdraws consent, so it asks again next time');
+  await p.locator('#geo-yes').click();
+  await p.waitForTimeout(1500);
+
+  // ---------------------------------------------------------------
   console.log('\n-- opening it full screen --');
   // ---------------------------------------------------------------
   await p.locator('[data-map-full="trip"]').click();
@@ -117,6 +189,13 @@ const parseGoogle = url => {
     `the view is shaped to the screen, so nothing is wasted on bars (${opened.vbAspect.toFixed(3)} vs ${opened.stageAspect.toFixed(3)})`);
   ok(opened.bodyLocked === 'hidden', 'the page behind does not scroll');
   ok(!opened.outDisabled, 'it opens with room to zoom back out');
+
+  const fsGeo = await p.evaluate(() => ({
+    dot: Boolean(document.querySelector('.mapfs .user-location')),
+    button: Boolean(document.querySelector('.mapfs [data-map-gps]')),
+  }));
+  ok(fsGeo.dot, 'your location comes with you into full screen');
+  ok(!fsGeo.button, 'and the toolbar there is the viewer\'s own, not a second copy');
 
   // Reset means the whole country, and that is where 100% is.
   await p.locator('.mv-reset').click();

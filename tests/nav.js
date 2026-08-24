@@ -106,6 +106,25 @@ const EXPECTED = 10;   // nav destinations
     ok(small.length === 0, `every target is a comfortable size (${small.join(', ') || 'all >= 40px'})`);
     ok(open.scrollsInside, 'the whole menu fits without scrolling');
 
+    // My Quests is the destination people want most often, so it should
+    // be findable without reading the labels.
+    const standout = await p.evaluate(() => {
+      const rgb = el => getComputedStyle(el).backgroundColor;
+      const trips = document.querySelector('#hdr-nav .nav-btn[data-view="trips"]');
+      const others = [...document.querySelectorAll('#hdr-nav .nav-btn')]
+        .filter(b => b.dataset.view !== 'trips');
+      return {
+        trips: rgb(trips),
+        sharedByOthers: new Set(others.map(rgb)).size,
+        othersSample: rgb(others[0]),
+        text: getComputedStyle(trips).color,
+      };
+    });
+    ok(standout.trips !== standout.othersSample,
+      `My Quests is a different colour from the rest (${standout.trips} vs ${standout.othersSample})`);
+    ok(/^rgba?\((2[0-5]\d|1[6-9]\d)[,\s]+(1[0-9]\d|\d\d)[,\s]+\d/.test(standout.trips),
+      `and that colour is the amber fill (${standout.trips})`);
+
     // Choosing a destination goes there and puts the menu away.
     await p.locator('.nav-btn[data-view="store"]').click();
     await p.waitForTimeout(450);

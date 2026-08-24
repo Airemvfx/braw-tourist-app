@@ -1050,7 +1050,65 @@ small { font-size: 0.78em; }
   color: var(--on-amber); background: var(--gold); font-weight: 600;
   padding: 0.18rem 0.48rem; border-radius: 4px; white-space: nowrap;
 }
-.tc-foot { margin-top: 0.55rem; font-size: 0.78rem; color: var(--text-dim); }
+.tc-foot {
+  margin-top: 0.6rem; font-size: 0.78rem; color: var(--text-dim);
+  display: flex; align-items: center; justify-content: space-between; gap: 0.8rem;
+}
+
+/* Styled as a button, deliberately not one — see the comment where it is
+   rendered. It exists because a card of neatly-set text reads as a
+   readout rather than as something to press. */
+.tc-open {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  padding: 0.32rem 0.75rem; flex-shrink: 0;
+  font-family: var(--font-ui); font-size: 0.78rem; font-weight: 600;
+  color: var(--amber-ink);
+  background: var(--amber-pale);
+  border: 1px solid rgba(201,138,64,0.3);
+  border-radius: 999px;
+  transition: background 0.16s, border-color 0.16s, color 0.16s;
+}
+.tc-arrow { transition: transform 0.18s var(--ease-out); }
+.trip-card:hover .tc-open {
+  background: var(--amber); color: var(--on-amber); border-color: var(--amber);
+}
+.trip-card:hover .tc-arrow { transform: translateX(3px); }
+.trip-card.is-complete .tc-open {
+  color: var(--gold); background: rgba(217,184,74,0.12); border-color: rgba(217,184,74,0.32);
+}
+.trip-card.is-complete:hover .tc-open { background: var(--gold); color: var(--on-amber); border-color: var(--gold); }
+
+/* Taller than the 6px hairline it was, and divided into one segment per
+   stop — so the bar answers "how many places left?" and not only "what
+   fraction?". The dividers are drawn over the fill with a repeating
+   gradient whose period is set from the stop count. */
+.tc-progress {
+  position: relative; height: 12px; border-radius: 999px;
+  background: var(--inset-3);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+.tcp-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--amber) 0%, var(--gold) 100%);
+  border-radius: 999px;
+  box-shadow: 0 0 12px var(--amber-glow);
+  transition: width 0.5s var(--ease-out);
+}
+.tc-progress::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: repeating-linear-gradient(
+    90deg,
+    transparent 0,
+    transparent calc(100% / var(--stops, 1) - 2px),
+    var(--surface) calc(100% / var(--stops, 1) - 2px),
+    var(--surface) calc(100% / var(--stops, 1))
+  );
+  opacity: 0.85;
+}
+.trip-card.is-complete .tcp-fill {
+  background: linear-gradient(90deg, var(--gold), var(--amber-light));
+}
 
 .empty-state {
   grid-column: 1 / -1; text-align: center; padding: 3.5rem 2rem;
@@ -1253,31 +1311,13 @@ small { font-size: 0.78em; }
 @keyframes btn-spin { to { transform: rotate(360deg); } }
 
 /* ---- "Add more journeys" prompt under the trip list ------- */
+/* Was a three-line pitch explaining what the button does. The button
+   says it. */
 .trips-cta {
-  width: 100%; margin-top: 1rem; padding: 1.05rem 1.2rem;
-  display: flex; align-items: center; gap: 0.95rem;
-  text-align: left; cursor: pointer;
-  font-family: var(--font-ui); color: var(--text);
-  background: var(--panel-1);
-  border: 1px dashed var(--border-strong);
-  border-radius: var(--r);
-  transition: border-color 0.2s, background 0.2s, transform 0.16s var(--ease-out);
+  margin-top: 1.1rem;
+  display: inline-flex; align-items: center; gap: 0.55rem;
 }
-.tcta-icon {
-  width: 40px; height: 40px; flex-shrink: 0;
-  display: grid; place-items: center; font-size: 1.15rem;
-  background: var(--amber-pale);
-  border: 1px solid rgba(201,138,64,0.28);
-  border-radius: 10px;
-}
-.tcta-text { display: grid; gap: 0.12rem; flex: 1; min-width: 0; }
-.tcta-text b { font-weight: 600; font-size: 0.98rem; }
-.tcta-text i { font-style: normal; font-size: 0.82rem; color: var(--text-dim); }
-.tcta-go {
-  flex-shrink: 0; font-size: 0.85rem; font-weight: 600;
-  color: var(--amber-ink); white-space: nowrap;
-}
-.trips-cta:active { transform: scale(0.99); }
+.tcta-plus { width: 1.15em; height: 1.15em; flex-shrink: 0; }
 
 /* ---- Glen behind the quest planner ----------------------- */
 #view-plan { position: relative; }
@@ -1698,7 +1738,7 @@ small { font-size: 0.78em; }
 .lb-row:not(.lb-head) { transition: background 0.18s, transform 0.16s var(--ease-out); }
 
 /* Icons that react to their parent */
-.tc-icon, .stat-icon, .badge-shield, .tcta-icon { transition: transform 0.26s var(--ease-pop); }
+.tc-icon, .stat-icon, .badge-shield { transition: transform 0.26s var(--ease-pop); }
 .tc-icon, .stat-icon { display: inline-block; }
 
 /* SVG markers: cx/cy are 0 inside the translated group, so plain
@@ -1731,7 +1771,6 @@ small { font-size: 0.78em; }
     background: var(--panel-2);
     transform: translateY(-2px);
   }
-  .trips-cta:hover .tcta-icon { transform: scale(1.08) rotate(-8deg); }
 
   .stamp:hover { transform: translateY(-2px); border-color: var(--border-active); }
   .stamp.is-stamped:hover .stamp-mark { transform: rotate(-7deg) scale(1.08); }
@@ -1839,9 +1878,7 @@ small { font-size: 0.78em; }
 
 /* The CTA's three columns collapse into slivers on a phone. */
 @media (max-width: 560px) {
-  .trips-cta { flex-wrap: wrap; gap: 0.7rem 0.85rem; padding: 0.95rem 1rem; }
-  .tcta-text { flex: 1 1 60%; }
-  .tcta-go { flex: 1 0 100%; text-align: right; }
+  .trips-cta { width: 100%; justify-content: center; }
 }
 
 /* The draft preview lives inside a bordered card, so its map must stay
@@ -3039,6 +3076,18 @@ body.mapfs-open { overflow: hidden; }
     background: var(--amber-pale); border-color: var(--border-active);
   }
 
+  /* My Quests is where people are going most of the time, so it is the
+     one item that does not have to be read to be found. Kept distinct
+     from `.active` — which any item can be — by being a filled chip
+     rather than a tinted one. */
+  .hdr-nav .nav-btn[data-view="trips"] {
+    background: var(--amber); color: var(--on-amber);
+    border-color: var(--amber); font-weight: 700;
+  }
+  .hdr-nav .nav-btn[data-view="trips"].active {
+    box-shadow: 0 0 0 2px var(--amber-glow), 0 4px 14px rgba(0,0,0,0.35);
+  }
+
   /* Room for the button, so the last card is never trapped beneath it. */
   .app-main { padding-bottom: calc(5.6rem + env(safe-area-inset-bottom)); }
 
@@ -3049,4 +3098,44 @@ body.mapfs-open { overflow: hidden; }
 
 @media (prefers-reduced-motion: reduce) {
   .hdr-nav, .mf-bars i, .map-tool, .mv-btn { transition: none; }
+}
+
+/* ---- the GPS button on a map -------------------------------- */
+.map-gps { position: relative; }
+/* Drawn rather than an emoji: it has to show three states (off, live,
+   refused) and a glyph can only really show one. */
+.mg-ring {
+  width: 1rem; height: 1rem; border-radius: 50%;
+  border: 2px solid currentColor;
+  position: relative; display: block;
+}
+.mg-ring::before {
+  content: ''; position: absolute; inset: 3px;
+  border-radius: 50%; background: currentColor;
+}
+/* The crosshair arms, so it reads as a locator and not as a dot. */
+.mg-ring::after {
+  content: ''; position: absolute; inset: -5px;
+  border-radius: inherit;
+  background:
+    linear-gradient(currentColor, currentColor) center top / 2px 4px no-repeat,
+    linear-gradient(currentColor, currentColor) center bottom / 2px 4px no-repeat,
+    linear-gradient(currentColor, currentColor) left center / 4px 2px no-repeat,
+    linear-gradient(currentColor, currentColor) right center / 4px 2px no-repeat;
+}
+.map-gps.is-on { color: var(--sage); border-color: rgba(79,158,122,0.55); }
+.map-gps.is-on .mg-ring { animation: gps-pulse 2s ease-out infinite; }
+.map-gps.is-busy { color: var(--amber-ink); }
+.map-gps.is-busy .mg-ring { animation: gps-pulse 0.9s ease-out infinite; }
+.map-gps.is-problem { color: var(--rose); border-color: rgba(201,98,84,0.45); }
+
+@keyframes gps-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(79,158,122,0.5); }
+  70%  { box-shadow: 0 0 0 9px rgba(79,158,122,0); }
+  100% { box-shadow: 0 0 0 0 rgba(79,158,122,0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .map-gps .mg-ring { animation: none; }
+  .tcp-fill, .tc-arrow, .tc-open { transition: none; }
 }

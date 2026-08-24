@@ -422,5 +422,6 @@ export function renderMap(stops = [], start = null, userPos = null, opts = {}) {
       <path class="map-route-trim" d="${routeD}" fill="none" pathLength="100"/>` : ''}
     ${startMarker}
     <g filter="url(#${ns}markerGlow)">${markers}</g>
+    ${userDot}
   </svg>`;
 }

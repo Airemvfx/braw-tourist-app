@@ -267,13 +267,11 @@
         <div id="trips-list" class="trips-grid"></div>
         <!-- Shown only once at least one quest exists; the empty state
              carries its own call to action. -->
-        <button type="button" class="trips-cta" id="trips-cta" hidden>
-          <span class="tcta-icon">🧭</span>
-          <span class="tcta-text">
-            <b data-i18n="trips.cta.title">Want to add more journeys?</b>
-            <i data-i18n="trips.cta.body">Describe another trip and we will chart it for you</i>
-          </span>
-          <span class="tcta-go" data-i18n="trips.cta.action">Plan a new quest →</span>
+        <button type="button" class="trips-cta btn btn-primary" id="trips-cta" hidden>
+          <svg class="tcta-plus" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+          </svg>
+          <span data-i18n="trips.cta.add">Add a new journey</span>
         </button>
       </section>
 

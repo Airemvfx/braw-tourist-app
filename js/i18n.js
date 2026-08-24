@@ -186,9 +186,8 @@ const EN = {
   'trips.card.meta': '{days} days · {stops} stops · ≈{dist} · from {start}',
   'trips.card.completed': 'COMPLETED',
   'trips.card.progress': '{done} of {total} locations visited',
-  'trips.cta.title': 'Want to add more journeys?',
-  'trips.cta.body': 'Describe another trip and we will chart it for you',
-  'trips.cta.action': 'Plan a new quest →',
+  'trips.cta.add': 'Add a new journey',
+  'trips.card.open': 'Open',
 
   // ---- achievements ----
   'badges.title': 'Achievements',
@@ -499,6 +498,8 @@ const EN = {
   'map.fullscreen': 'Full screen map',
   'map.fullscreenHint': 'Drag to move · pinch or scroll to zoom · tap a pin for details',
   'map.google': 'Open this view in Google Maps',
+  'map.gps': 'Show my location',
+  'map.gpsOff': 'Stop showing my location',
   'map.openHere': 'Open in Google Maps',
   'map.zoomIn': 'Zoom in',
   'map.zoomOut': 'Zoom out',
@@ -891,9 +892,8 @@ const PL = {
   'trips.card.meta': 'dni: {days} · przystanków: {stops} · ok. {dist} · start: {start}',
   'trips.card.completed': 'UKOŃCZONA',
   'trips.card.progress': 'Odwiedzono {done} z {total} miejsc',
-  'trips.cta.title': 'Chcesz dodać kolejne wyprawy?',
-  'trips.cta.body': 'Opisz następną podróż, a wytyczymy Ci trasę',
-  'trips.cta.action': 'Zaplanuj nową wyprawę →',
+  'trips.cta.add': 'Dodaj nową wyprawę',
+  'trips.card.open': 'Otwórz',
 
   // ---- achievements ----
   'badges.title': 'Osiągnięcia',
@@ -1202,6 +1202,8 @@ const PL = {
   'map.fullscreen': 'Mapa na pełnym ekranie',
   'map.fullscreenHint': 'Przeciągnij, aby przesunąć · szczypnij lub przewiń, aby przybliżyć · dotknij pinezki po szczegóły',
   'map.google': 'Otwórz ten widok w Mapach Google',
+  'map.gps': 'Pokaż moją lokalizację',
+  'map.gpsOff': 'Przestań pokazywać moją lokalizację',
   'map.openHere': 'Otwórz w Mapach Google',
   'map.zoomIn': 'Przybliż',
   'map.zoomOut': 'Oddal',
