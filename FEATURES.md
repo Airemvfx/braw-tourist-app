@@ -124,6 +124,11 @@ Serve the folder with any static server and open `index.html`
   and a licence is dropped rather than displayed.
 - Cards show a segmented progress bar — one segment per stop — so the bar answers "how
   many places left?" and not only "what fraction?".
+- Every stop in the list carries **its own square**: a photograph the traveller took
+  there on this trip, else the library photograph, else the emoji it has always shown.
+  A thumbnail rather than a full-width band on purpose — a stop list is a plan, and its
+  value is taking in fifteen places at once. A visited stop with a photograph carries a
+  gold ring, which is the journal showing through the plan.
 - A quest can be **deleted**, behind a typed four-letter code. A second "are you sure?"
   button gets tapped in the same rhythm as the first; typing something cannot happen by
   accident. The dialog states what is actually lost: the XP still on offer, and any
@@ -131,6 +136,13 @@ Serve the folder with any static server and open `index.html`
   drop somebody a level for tidying their list.
 
 ### 5. Profile & statistics
+- **A grid of the traveller's own photographs**, newest first. This is the part of the
+  interface that needs nothing from anybody: it draws on pictures the app has been
+  storing since check-ins shipped, so it works with no picture library and no backend.
+  Tiles are rendered empty and filled afterwards rather than carrying their image URL —
+  an object URL is a fresh string every time it is minted, so putting one in the markup
+  would make every tile look changed and rebuild the whole grid on each render, and this
+  view re-renders two or three times on arrival while it waits on IndexedDB.
 - Profile hero with level, rank title and XP-to-next-level bar.
 - 8 stat tiles: locations visited, quests created/completed, castles stormed, drams earned,
   regions explored, peaks bagged, achievements.
