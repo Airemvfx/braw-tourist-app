@@ -121,7 +121,7 @@ export function coverHTML(poiId, { ratio = '', sizes = '', eager = false, captio
   const e = imageFor(poiId);
   if (!e) return html``;
   return html`<div class="media ${ratio}">${
-    imgHTML(e.file, altOf(e), { sizes, eager })}${
+    imgHTML(e.file, altOf(e), { sizes, eager, widths: e.widths })}${
     caption ? html`<div class="media-scrim"></div>${raw(String(caption))}` : ''}${
     creditHTML(e)}</div>`;
 }

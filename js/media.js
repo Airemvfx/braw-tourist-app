@@ -150,12 +150,7 @@ export function hydrate(img) {
     img.dataset.mediaState = 'loaded';
     img.classList.add('is-loaded');
   }, { once: true });
-  img.addEventListener('error', () => {
-    img.dataset.mediaState = 'failed';
-    img.classList.add('is-failed');
-    img.removeAttribute('src');
-    img.removeAttribute('srcset');
-  }, { once: true });
+  img.addEventListener('error', () => markFailed(img), { once: true });
   if (sizes) img.sizes = sizes;
   if (srcset) img.srcset = srcset;
   if (src) img.src = src;
@@ -175,7 +170,25 @@ export function mountLazy(root = document) {
     if (img.dataset.mediaState) continue;
     if (io) io.observe(img); else hydrate(img);
   }
+  // Eager images are already fetching, so there is nothing to defer —
+  // but they can still 404, and a broken-image icon in a grid of
+  // photographs reads as a bug. Give them the same failure handling.
+  for (const img of root.querySelectorAll('img.media-img:not([data-src])')) {
+    if (img.dataset.mediaState) continue;
+    img.dataset.mediaState = 'eager';
+    if (img.complete && img.naturalWidth === 0) markFailed(img);
+    else img.addEventListener('error', () => markFailed(img), { once: true });
+  }
   return imgs.length;
+}
+
+function markFailed(img) {
+  img.dataset.mediaState = 'failed';
+  img.classList.add('is-failed');
+  img.classList.remove('is-loaded');
+  img.removeAttribute('src');
+  img.removeAttribute('srcset');
+  img.closest('.media')?.classList.add('is-empty');
 }
 
 /**
@@ -195,13 +208,24 @@ export function mountLazy(root = document) {
  * the cover of a card just opened. Deferring those costs a visible flash
  * and buys nothing.
  */
-export function imgHTML(path, alt, { sizes = '', eager = false, cls = '' } = {}) {
+export function imgHTML(path, alt, { sizes = '', eager = false, cls = '', widths = null } = {}) {
   const url = imageUrl(path);
-  const set = srcsetFor(path);
+  // No srcset unless the caller says which renditions actually exist.
+  // Assuming them is worse than not having them: the browser would pick
+  // a width, fetch a file nobody built, and show the failed placeholder
+  // for a picture that is sitting right there.
+  const set = widths && widths.length ? srcsetFor(path, widths) : '';
   const klass = ('media-img ' + cls).trim();
   const text = alt ?? '';
+  // An eager image is painted as soon as the browser has it, so it is
+  // marked loaded in the markup. Without this it sits at opacity 0 for
+  // ever: the fade-in waits for a load event that hydrate() would have
+  // attached, and hydrate() only ever runs for lazy images. That failure
+  // is invisible in the DOM — right src, right size, right classes — and
+  // shows up only as a card that renders as an empty box.
+  const eagerClass = (klass + ' is-loaded').trim();
   return eager
-    ? html`<img class="${klass}" alt="${text}" decoding="async"${
+    ? html`<img class="${eagerClass}" alt="${text}" decoding="async"${
         sizes ? html` sizes="${sizes}"` : ''} src="${url}"${
         set ? html` srcset="${set}"` : ''}>`
     : html`<img class="${klass}" alt="${text}" decoding="async"${

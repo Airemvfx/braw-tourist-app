@@ -256,6 +256,10 @@ def cmd_resize(args):
             im.save(dst, 'WEBP', quality=82, method=6)
             n += 1
         # The manifest points at the WebP stem; js/media.js appends -400/-800/-1600.
+        # Record what was actually written. The app emits no srcset
+        # without this, because a srcset naming files nobody built shows
+        # a failed placeholder for a picture that is sitting right there.
+        entry['widths'] = list(WIDTHS)
         entry['file'] = stem + '.webp'
         if not os.path.exists(os.path.join(ROOT, entry['file'])):
             Image.open(src).convert('RGB').save(

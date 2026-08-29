@@ -109,6 +109,19 @@ Serve the folder with any static server and open `index.html`
   move so copying it or opening it in a new tab gets where you are now.
 
 ### 4e. Managing quests
+- A quest card is built around its **cover photograph**: a picture the traveller took on
+  that trip if there is one, else the library photograph of its first stop, else the
+  stop's own emoji on a tinted banner — which is the card this app had before, so an
+  empty library costs a picture and never a broken layout.
+- Text over a photograph is **measured, not eyeballed**. A photograph is not a colour, so
+  the usual "composite the background colours" check reads straight through a gradient
+  scrim and reports a confident wrong number. The tests hide the text, screenshot the box
+  it sat in and take the worst pixel — against a pure white frame, the brightest thing a
+  photograph can be. Worst case is 6.8:1 against a 4.5:1 requirement.
+- Library photographs come from Wikimedia Commons, the only source that is at once
+  place-accurate, permanently storable and usable in a product that sells prints. Licences
+  vary per file there, so **attribution is part of the schema**: an entry without an author
+  and a licence is dropped rather than displayed.
 - Cards show a segmented progress bar — one segment per stop — so the bar answers "how
   many places left?" and not only "what fraction?".
 - A quest can be **deleted**, behind a typed four-letter code. A second "are you sure?"

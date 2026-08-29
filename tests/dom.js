@@ -63,6 +63,11 @@ const ok = (cond, msg) => { console.log(`  ${cond ? '✓' : '✗'} ${msg}`); if 
     draw([{ id: 'a', label: 'A' }]);
     out.afterRemove = [...host.children].map(el => el.dataset.key).join(',');
 
+    // an empty state put there by render() must not survive a list()
+    render(host, html`<p class="empty">nothing here</p>`);
+    draw([{ id: 'a', label: 'A' }]);
+    out.strayCleared = !host.querySelector('.empty') && host.children.length === 1;
+
     // the big markup string must not be written into the document
     out.noHtmlAttr = !host.innerHTML.includes('brawhtml') && !host.innerHTML.includes('data-html');
 
@@ -110,6 +115,7 @@ const ok = (cond, msg) => { console.log(`  ${cond ? '✓' : '✗'} ${msg}`); if 
   ok(r.reordered === 'c,a,b', `reordering moves elements (${r.reordered})`);
   ok(r.reorderReused === true, 'and reuses them rather than rebuilding');
   ok(r.afterRemove === 'a', `dropped items are removed (${r.afterRemove})`);
+  ok(r.strayCleared === true, 'an element list() did not create is cleared out');
   ok(r.noHtmlAttr === true, 'the cached markup is not written into the DOM');
   ok(r.refusedTwoRoots === true, 'a two-root template is rejected');
 

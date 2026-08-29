@@ -124,6 +124,35 @@ const PIXEL = 'data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAA
   ok(failed.every(f => f.failed), 'a 404 marks the image failed rather than broken');
   ok(failed.every(f => f.src === null), 'and clears its src, so no broken-image icon is drawn');
 
+  // The bug this pins: an eager image had no load listener (hydrate only
+  // ever runs for lazy ones), so it never gained .is-loaded and sat at
+  // opacity 0 for ever. Everything about it looked right in the DOM —
+  // correct src, correct size, correct classes bar one — and the card
+  // simply rendered as an empty box.
+  const eager = await p.evaluate(async () => {
+    const m = await import('/js/media.js');
+    const box = document.createElement('div');
+    box.className = 'media';
+    box.innerHTML = String(m.imgHTML('/lazy-probe-eager.png', 'x', { eager: true }));
+    document.body.appendChild(box);
+    const img = box.querySelector('img');
+    const before = getComputedStyle(img).opacity;
+    m.mountLazy(box);
+    return { markedLoaded: img.classList.contains('is-loaded'), opacity: before };
+  });
+  console.log('\n-- eager images --');
+  ok(eager.markedLoaded === true, 'an eager image is marked loaded in the markup');
+  ok(eager.opacity === '1', `and is actually visible (opacity ${eager.opacity})`);
+
+  await p.waitForTimeout(500);
+  const eagerFailed = await p.evaluate(() => {
+    const img = document.querySelector('img[alt="x"]');
+    return { failed: img.classList.contains('is-failed'),
+             boxEmpty: img.closest('.media')?.classList.contains('is-empty') };
+  });
+  ok(eagerFailed.failed === true, 'and a 404 on an eager image still degrades');
+  ok(eagerFailed.boxEmpty === true, 'putting the box back to its placeholder');
+
   console.log('\n-- page --');
   ok(errors.length === 0, `no page errors (${errors.length ? errors[0] : 'none'})`);
 

@@ -32,6 +32,9 @@ import {
   downloadTripGPX, downloadTripGeoJSON, downloadBackup,
   readBackup, backupSummary,
 } from './exporter.js';
+import { html, raw, render, list, action, mountActions } from './dom.js';
+import { imgHTML, mountLazy, scopedUrl, releaseScope } from './media.js';
+import { loadLibrary, firstImage, altOf, creditHTML } from './imagelib.js';
 import { renderHero } from './hero-scene.js';
 import { renderShowcase, startShowcase, stopShowcase } from './showcase.js';
 import { loadPhotos, hasPhotos, mountBackdrop, mountCarousel, stopCarousel } from './photos-hero.js';
@@ -399,6 +402,29 @@ function switchView(name) {
   renderers[name]?.();
   renderHeader();
   window.scrollTo({ top: 0 });
+}
+
+/**
+ * The delegated click table.
+ *
+ * One listener for the whole document, so re-rendering a list wires
+ * nothing and a hundred cards cost what one costs. Registered once at
+ * boot, beside the other wire* functions.
+ */
+function wireActions() {
+  mountActions(document);
+  action('trip-open', id => { openTripId = id; switchView('trip'); });
+  action('trip-del', id => confirmDeleteTrip(id));
+  action('plan-new', () => switchView('plan'));
+
+  // The picture library is fetched once, in the background, and never
+  // on the boot path — a card without its cover is the state this app
+  // shipped in for months, so it is worth exactly zero milliseconds of
+  // the first paint. When it lands, any list already on screen is
+  // re-rendered; list() means that costs only the cards that changed.
+  loadLibrary().then(lib => {
+    if (Object.keys(lib).length && currentView === 'trips') renderTrips();
+  });
 }
 
 function wireNav() {
@@ -793,37 +819,53 @@ function saveDraft() {
 // View: My quests (trip list)
 // ============================================================
 
-function renderTrips() {
-  const host = $('#trips-list');
-  const cta = $('#trips-cta');
-  cta.hidden = !user.trips.length;
-  if (!user.trips.length) {
-    host.innerHTML = `
-      <div class="empty-state card">
-        <div class="empty-icon">🗺️</div>
-        <h3>${t('trips.empty.title')}</h3>
-        <p>${t('trips.empty.body')}</p>
-        <button class="btn btn-primary" id="empty-plan-btn">${t('trips.empty.cta')}</button>
-      </div>`;
-    $('#empty-plan-btn').addEventListener('click', () => switchView('plan'));
-    return;
-  }
+const TRASH_SVG = `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+  <path d="M4 7h16M10 4h4M9 7v12M15 7v12M6 7l1 13h10l1-13"
+        fill="none" stroke="currentColor" stroke-width="1.8"
+        stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 
-  host.innerHTML = user.trips.map(trip => {
-    const pr = tripProgress(trip);
-    const done = !!trip.completedAt;
-    return `
-    <article class="trip-card card ${done ? 'is-complete' : ''}" data-trip="${trip.id}">
-      <div class="tc-top">
-        <span class="tc-icon">${done ? '🏁' : '🛤️'}</span>
-        <div class="tc-names">
-          <span class="tc-title">${esc(tripTitle(trip))}</span>
-          <span class="tc-sub">${esc(t('trips.card.meta', {
-            days: trip.days.length, stops: pr.total,
-            dist: formatDistance(trip), start: cityName(trip.start.name),
-          }))}</span>
+// A cover is about a third of the screen on a phone and a third of a
+// column on a desktop, which is what these tell the browser so it can
+// pick a rendition rather than always taking the largest.
+const COVER_SIZES = '(min-width: 900px) 33vw, (min-width: 560px) 50vw, 100vw';
+
+/**
+ * One quest, as a card built around its cover.
+ *
+ * The picture is the card now, rather than an emoji beside a paragraph.
+ * Where it comes from, in order: a photograph the traveller took on this
+ * trip, then the library photograph of its first stop, then the stop's
+ * own emoji on a tinted ground — which is exactly the card this app had
+ * before, so an empty library costs a picture and never a broken layout.
+ *
+ * The traveller's own photograph is filled in afterwards, by
+ * hydrateTripCovers, because it lives in IndexedDB and this has to
+ * return markup now.
+ */
+function tripCardHTML(trip) {
+  const pr = tripProgress(trip);
+  const done = !!trip.completedAt;
+  const ids = tripStopIds(trip);
+  const pick = firstImage(ids);
+  const icon = POI_BY_ID[ids[0]]?.icon || (done ? '🏁' : '🛤️');
+  const meta = t('trips.card.meta', {
+    days: trip.days.length, stops: pr.total,
+    dist: formatDistance(trip), start: cityName(trip.start.name),
+  });
+
+  return html`
+    <article class="trip-card card cover-card ${done ? 'is-complete' : ''}"
+             data-trip="${trip.id}" data-act="trip-open" data-arg="${trip.id}">
+      <div class="media tc-cover ${pick ? '' : 'is-empty'}"
+           data-icon="${icon}" data-trip-cover="${trip.id}">
+        ${pick ? imgHTML(pick.entry.file, altOf(pick.entry), { sizes: COVER_SIZES, widths: pick.entry.widths }) : ''}
+        <div class="media-scrim"></div>
+        <span class="tc-chip">${done ? t('trips.card.completed') : pr.pct + '%'}</span>
+        <div class="media-caption">
+          <span class="mc-title tc-title">${tripTitle(trip)}</span>
+          <span class="mc-sub tc-sub">${meta}</span>
         </div>
-        ${done ? `<span class="tc-badge">${t('trips.card.completed')}</span>` : `<span class="tc-pct">${pr.pct}%</span>`}
+        ${pick ? creditHTML(pick.entry) : ''}
       </div>
       <!-- Past twenty or so the dividers are thinner than the gaps
            and the bar reads as hatching, so it goes back to plain. -->
@@ -833,37 +875,77 @@ function renderTrips() {
       <div class="tc-foot">
         <span class="tc-count">${t('trips.card.progress', { done: pr.done, total: pr.total })}</span>
         <!-- The card is a plain <article> so these can be real buttons.
-             It was a <button>, which meant nothing inside it could be
-             one — a delete control has to have its own click. Keyboard
-             users reach the quest through Open; the card-wide click is
-             an extra for pointers, not the only way in. -->
+             Both it and they carry data-act; the delegated table finds
+             the innermost one, so the old "was this click meant for the
+             button?" guard is gone rather than merely rewritten. -->
         <span class="tc-actions">
-          <button type="button" class="tc-open" data-open="${trip.id}">${t('trips.card.open')} <span class="tc-arrow">→</span></button>
+          <button type="button" class="tc-open" data-open="${trip.id}"
+                  data-act="trip-open" data-arg="${trip.id}">${t('trips.card.open')} <span class="tc-arrow">→</span></button>
           <button type="button" class="tc-del" data-del="${trip.id}"
-                  title="${esc(t('trips.card.delete'))}"
-                  aria-label="${esc(t('trips.delete.aria', { title: tripTitle(trip) }))}">
-            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-              <path d="M4 7h16M10 4h4M9 7v12M15 7v12M6 7l1 13h10l1-13"
-                    fill="none" stroke="currentColor" stroke-width="1.8"
-                    stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
+                  data-act="trip-del" data-arg="${trip.id}"
+                  title="${t('trips.card.delete')}"
+                  aria-label="${t('trips.delete.aria', { title: tripTitle(trip) })}">
+            ${raw(TRASH_SVG)}
           </button>
         </span>
       </div>
     </article>`;
-  }).join('');
+}
 
-  const open = id => { openTripId = id; switchView('trip'); };
-  host.querySelectorAll('.trip-card').forEach(c => {
-    c.addEventListener('click', e => {
-      if (e.target.closest('.tc-actions')) return;   // its own buttons handle it
-      open(c.dataset.trip);
-    });
-  });
-  host.querySelectorAll('[data-open]').forEach(b =>
-    b.addEventListener('click', () => open(b.dataset.open)));
-  host.querySelectorAll('[data-del]').forEach(b =>
-    b.addEventListener('click', () => confirmDeleteTrip(b.dataset.del)));
+/**
+ * Put the traveller's own photographs on their quest cards.
+ *
+ * Their picture of a place beats a stranger's, so this overrides the
+ * library cover wherever one of their own exists. The most recent is
+ * used: it is the one they are most likely to recognise the trip by.
+ */
+async function hydrateTripCovers(scope) {
+  releaseScope('trip-covers');
+  for (const box of scope.querySelectorAll('[data-trip-cover]')) {
+    let shots = [];
+    try { shots = await photosForTrip(user.id, box.dataset.tripCover); } catch { continue; }
+    if (!shots.length) continue;
+    const rec = shots[shots.length - 1];
+    const url = scopedUrl('trip-covers', rec.thumbBlob || rec.thumb);
+    if (!url) continue;
+    let img = box.querySelector('img');
+    if (!img) {
+      img = document.createElement('img');
+      img.className = 'media-img';
+      img.decoding = 'async';
+      img.alt = '';
+      box.prepend(img);
+    }
+    img.removeAttribute('srcset');
+    img.removeAttribute('data-src');
+    img.src = url;
+    img.classList.add('is-loaded');
+    box.classList.remove('is-empty');
+  }
+}
+
+function renderTrips() {
+  const host = $('#trips-list');
+  const cta = $('#trips-cta');
+  cta.hidden = !user.trips.length;
+
+  if (!user.trips.length) {
+    render(host, html`
+      <div class="empty-state card">
+        <div class="empty-icon">🗺️</div>
+        <h3>${t('trips.empty.title')}</h3>
+        <p>${t('trips.empty.body')}</p>
+        <button class="btn btn-primary" data-act="plan-new">${t('trips.empty.cta')}</button>
+      </div>`);
+    return;
+  }
+
+  // Keyed, so a card whose data has not changed keeps its element — and
+  // therefore its cover photograph, undecoded, and its entrance
+  // animation unplayed. This view re-renders on every check-in.
+  list(host, user.trips, trip => trip.id, tripCardHTML);
+  mountLazy(host);
+  hydrateTripCovers(host);
 }
 
 /**
@@ -3346,6 +3428,7 @@ document.addEventListener('DOMContentLoaded', () => {
   syncAuthSubmit();   // decides which fields the sign-in form shows
   wireSync();
   wireNav();
+  wireActions();
   wirePhotos();
   wireLocation();
   $('#plan-go').addEventListener('click', runPlanner);

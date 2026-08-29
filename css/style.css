@@ -3451,12 +3451,17 @@ body.mapfs-open { overflow: hidden; }
   position: absolute; inset: 0;
   z-index: 2;
   pointer-events: none;
+  /* Weighted toward the text rather than spread over the picture. The
+     caption occupies roughly the bottom third, so the scrim is heavy
+     there and gone by two thirds — measured, because the point of an
+     image-led card is the image, and a scrim that dims all of it to
+     make one line readable has taken more than it needed. */
   background: linear-gradient(
     to top,
-    rgba(6,10,16,0.88) 0%,
-    rgba(6,10,16,0.78) 26%,
-    rgba(6,10,16,0.38) 52%,
-    rgba(6,10,16,0.00) 78%);
+    rgba(6,10,16,0.90) 0%,
+    rgba(6,10,16,0.82) 22%,
+    rgba(6,10,16,0.34) 44%,
+    rgba(6,10,16,0.00) 64%);
 }
 .media-scrim.is-full { background: rgba(6,10,16,0.62); }
 
@@ -3526,3 +3531,40 @@ body.mapfs-open { overflow: hidden; }
 }
 .cover-card .media { border-radius: 0; }
 .cover-card-body { padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-2); }
+
+/* No photograph — because the library has none for this place yet, or
+   the file 404'd. The location's own emoji fills the box, which is what
+   the card looked like before any of this, so a missing picture costs a
+   picture and never a broken layout. */
+/* Shorter than a real cover, and deliberately so. A 16:10 box holding
+   one emoji is mostly empty space, which reads as a picture that failed
+   to load rather than a card that never had one. A banner reads as a
+   choice. When a photograph does arrive the box grows to its proper
+   ratio, which is the right way round: the picture earns the height. */
+.media.is-empty { aspect-ratio: 21 / 9; }
+.media.is-empty::after {
+  content: attr(data-icon);
+  position: absolute; inset: 0 0 3.6rem 0; z-index: 1;
+  display: grid; place-items: center;
+  font-size: 2.2rem; opacity: 0.6;
+}
+.media.is-empty .media-scrim { opacity: 0.5; }
+
+/* ---- the trip card, rebuilt around its cover ---- */
+.trip-card.cover-card { padding: 0; }
+.cover-card > .tc-progress { border-radius: 0; border-left: 0; border-right: 0; }
+.cover-card > .tc-foot { margin-top: 0; padding: var(--space-3) var(--space-4) var(--space-4); }
+
+/* The percentage sits on the picture, so it carries its own ground
+   rather than trusting whatever is behind it. */
+.tc-chip {
+  position: absolute; z-index: 3; top: var(--space-2); right: var(--space-2);
+  font-family: var(--font-mono); font-size: 0.78rem; font-weight: 600;
+  padding: 0.2rem 0.5rem; border-radius: 999px;
+  background: rgba(6,10,16,0.82); color: #f0c987;
+  border: 1px solid rgba(255,255,255,0.14);
+}
+.trip-card.is-complete .tc-chip { color: var(--gold); }
+.cover-card .media-caption .tc-sub {
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}

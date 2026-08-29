@@ -116,9 +116,15 @@ function build(markup, key) {
  * delete the first trip and every card after it would be rebuilt.
  */
 export function list(host, items, keyOf, renderOne) {
+  // Anything already here that this function did not put here — an empty
+  // state, say — is not ours to keep. list() owns the host's children,
+  // so unkeyed ones go in `strays` and are removed at the end alongside
+  // the keys that dropped out.
   const existing = new Map();
+  const strays = [];
   for (const el of [...host.children]) {
     if (el.dataset.key != null) existing.set(el.dataset.key, el);
+    else strays.push(el);
   }
 
   let prev = null;
@@ -145,6 +151,7 @@ export function list(host, items, keyOf, renderOne) {
   }
 
   for (const dead of existing.values()) dead.remove();
+  for (const stray of strays) stray.remove();
   return host;
 }
 
