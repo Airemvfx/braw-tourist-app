@@ -3601,3 +3601,22 @@ body.mapfs-open { overflow: hidden; }
 @media (prefers-reduced-motion: reduce) {
   .pg-shot, .pg-shot:hover { transform: none; transition: none; }
 }
+
+/* ---- the landing carousel, edge to edge on a phone ----
+   It is the largest photograph on the first screen anyone sees, and a
+   1px border with a rounded corner on each side is what makes a picture
+   read as an illustration of the product rather than as the product.
+   Full width only where the panel is the whole screen; on a desktop the
+   brand column has its own margin and a bleeding image would fight it. */
+@media (max-width: 900px) {
+  .ph-carousel {
+    margin-left: calc(50% - 50vw);
+    margin-right: calc(50% - 50vw);
+    width: 100vw;
+    border-left: 0; border-right: 0;
+    border-radius: 0;
+    aspect-ratio: var(--ratio-photo);
+  }
+  .ph-slide figcaption { padding-left: 1.4rem; }
+  .ph-dots { padding-right: 1.4rem; }
+}

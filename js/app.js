@@ -801,6 +801,11 @@ function renderDraft() {
   $('#reshuffle-btn').addEventListener('click', () => { draftTrip = generateTrip(trip.prompt, trip.scope); renderDraft(); });
   $('#save-trip-btn').addEventListener('click', saveDraft);
   wireWildcards();
+  // The draft gets pictures too. With no trip id yet, coverFor falls
+  // back to the most recent photograph of each place, so a route
+  // through somewhere you have already been shows your own picture of
+  // it before you have saved anything.
+  hydrateStopThumbs(box, trip);
   wireMapMarkers(box, trip, false);
   wireStopList(box, trip);
   wireMapTools(box, 'draft', {
