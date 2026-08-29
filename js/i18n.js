@@ -260,6 +260,10 @@ const EN = {
   'profile.stat.badges': 'achievements',
   'profile.stat.stamps': 'region stamps',
   'profile.stat.photos': 'photos taken',
+  'profile.photos.title': 'Your photographs',
+  'profile.photos.count': '{n} in all',
+  'profile.photos.empty': 'Photographs you take at your stops appear here. They stay on this device.',
+  'profile.photos.open': 'Open this photograph',
 
   // ---- check-in photos ----
   'photo.add': 'Add photo',
@@ -979,6 +983,10 @@ const PL = {
   'profile.stat.badges': 'osiągnięć',
   'profile.stat.stamps': 'pieczątek regionów',
   'profile.stat.photos': 'zrobionych zdjęć',
+  'profile.photos.title': 'Twoje zdjęcia',
+  'profile.photos.count': 'łącznie {n}',
+  'profile.photos.empty': 'Zdjęcia zrobione na postojach pojawią się tutaj. Zostają na tym urządzeniu.',
+  'profile.photos.open': 'Otwórz to zdjęcie',
 
   // ---- check-in photos ----
   'photo.add': 'Dodaj zdjęcie',

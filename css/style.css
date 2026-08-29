@@ -3509,8 +3509,11 @@ body.mapfs-open { overflow: hidden; }
   grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr));
   gap: var(--space-3);
 }
+/* 92px rather than 110: on a 390px phone the wider floor fits only two
+   tiles, which reads as two big pictures rather than a gallery. Three
+   across is the point at which a grid starts to look like a grid. */
 .media-grid.is-tight {
-  grid-template-columns: repeat(auto-fill, minmax(min(110px, 100%), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(92px, 100%), 1fr));
   gap: var(--space-2);
 }
 
@@ -3567,4 +3570,23 @@ body.mapfs-open { overflow: hidden; }
 .trip-card.is-complete .tc-chip { color: var(--gold); }
 .cover-card .media-caption .tc-sub {
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* ---- the traveller's own photographs, on their profile ---- */
+.photos-card { padding: var(--space-4); }
+.pg-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: var(--space-3); margin-bottom: var(--space-3);
+}
+.pg-count { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-faint); }
+.pg-empty { color: var(--text-dim); font-size: 0.86rem; margin: 0; }
+.pg-shot {
+  padding: 0; border: 1px solid var(--border); cursor: pointer;
+  background: var(--inset-2);
+  transition: transform 160ms var(--ease-out), border-color 160ms var(--ease-out);
+}
+.pg-shot:hover { transform: scale(1.03); border-color: var(--border-active); }
+.pg-shot:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  .pg-shot, .pg-shot:hover { transform: none; transition: none; }
 }

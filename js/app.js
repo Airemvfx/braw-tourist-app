@@ -416,6 +416,10 @@ function wireActions() {
   action('trip-open', id => { openTripId = id; switchView('trip'); });
   action('trip-del', id => confirmDeleteTrip(id));
   action('plan-new', () => switchView('plan'));
+  action('photo-view', async id => {
+    const rec = await getPhoto(id);
+    if (rec) openPhoto(rec);
+  });
 
   // The picture library is fetched once, in the background, and never
   // on the boot path — a card without its cover is the state this app
@@ -2957,6 +2961,59 @@ let photoCount = 0;
 let health = null;          // last storageHealth() result, for the vault card
 let profileEntrance = false;// play the arrival animation on the next render
 
+/**
+ * The traveller's own photographs, as a grid.
+ *
+ * The tiles are rendered empty and filled afterwards, rather than
+ * carrying their image URL in the markup. That is what lets list()
+ * reuse them: an object URL is a fresh string every time it is minted,
+ * so putting one in the template would make every tile look changed on
+ * every render and rebuild the whole grid — which is the exact thing
+ * list() exists to avoid, and this view re-renders two or three times
+ * on arrival while it waits on IndexedDB.
+ */
+async function renderProfilePhotos() {
+  const host = $('#profile-photos');
+  if (!host) return;
+
+  let shots = [];
+  try { shots = await allPhotos(user.id); } catch { /* an unreadable store shows empty */ }
+  if (!shots.length) {
+    render(host, html`<p class="pg-empty">${t('profile.photos.empty')}</p>`);
+    return;
+  }
+
+  // Newest first: the photograph someone wants is nearly always the
+  // one they just took.
+  shots.sort((a, b) => b.at - a.at);
+  const recent = shots.slice(0, PROFILE_PHOTO_LIMIT);
+
+  list(host, recent, shot => shot.id, shot => html`
+    <button type="button" class="media is-square pg-shot"
+            data-act="photo-view" data-arg="${shot.id}" data-shot="${shot.id}"
+            title="${t('profile.photos.open')}"></button>`);
+
+  releaseScope('profile-photos');
+  for (const el of host.querySelectorAll('[data-shot]')) {
+    const rec = recent.find(r => r.id === el.dataset.shot);
+    if (!rec) continue;
+    const url = scopedUrl('profile-photos', rec.thumbBlob || rec.thumb);
+    if (!url) continue;
+    let img = el.querySelector('img');
+    if (!img) {
+      img = document.createElement('img');
+      img.className = 'media-img is-loaded';
+      img.decoding = 'async';
+      img.alt = '';
+      el.appendChild(img);
+    }
+    img.src = url;
+  }
+}
+
+/** Enough to show the shape of a trip without decoding a whole library. */
+const PROFILE_PHOTO_LIMIT = 60;
+
 function renderProfile() {
   const s = userStats(user);
   // Both of these read IndexedDB, so the card is drawn from what was
@@ -3002,6 +3059,14 @@ function renderProfile() {
         <div class="stat card"><span class="stat-icon">${icon}</span><span class="stat-n">${n}</span><span class="stat-label">${esc(t(key))}</span></div>`).join('')}
     </div>
 
+    <section class="card photos-card">
+      <div class="pg-head">
+        <h3>${t('profile.photos.title')}</h3>
+        <span class="pg-count">${photoCount ? t('profile.photos.count', { n: photoCount }) : ''}</span>
+      </div>
+      <div class="media-grid is-tight" id="profile-photos"></div>
+    </section>
+
     ${accountCardHTML()}
     ${vaultCardHTML()}
 
@@ -3029,6 +3094,7 @@ function renderProfile() {
 
   $('#profile-logout').addEventListener('click', () => $('#logout-btn').click());
   wireDataControls();
+  renderProfilePhotos();
   wireVaultControls();
   wireAccountControls();
 
