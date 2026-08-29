@@ -116,3 +116,51 @@ gets no passport icon and no stamp.
 **After adding locations, rebuild the travel matrix.** Until you do, any
 new location falls back to a straight-line guess and will not know about
 ferries.
+
+# Destination photographs (fetch_commons.py)
+
+Fills `images/locations/` and `images/locations.json` — one photograph per
+location, so the app has something to look at before anyone has taken a
+picture of their own.
+
+```
+python3 fetch_commons.py --list            # which locations have none yet
+python3 fetch_commons.py --fetch           # search Commons, download, write the manifest
+python3 fetch_commons.py --fetch --id glencoe --force
+python3 fetch_commons.py --resize          # WebP renditions at 400/800/1600 (needs Pillow)
+```
+
+Run it on your own machine. `commons.wikimedia.org` is unreachable from the
+development sandbox, and like the other scripts here the output is committed
+so the site never touches it.
+
+## Why Commons
+
+It is the only source that is at once place-accurate, permanently storable
+and usable in a product that sells things. Unsplash requires you to hotlink
+their CDN and forbids self-hosting copies; stock photography gives you a
+beautiful generic beach rather than the specific glen an itinerary names;
+and Google's terms forbid storing their place photographs at all.
+
+## The licence rules it enforces
+
+Commons files carry different licences side by side, so the tool decides
+rather than assuming. It accepts CC0, public domain, CC BY and CC BY-SA,
+and refuses anything NonCommercial or NoDerivatives — **the app has a Store
+that sells prints, so an NC image is disqualifying, not merely awkward** —
+along with anything whose author or licence it cannot establish. An entry it
+cannot credit honestly is skipped rather than guessed at: a wrong credit is
+worse than a missing picture.
+
+The credit it records is rendered by the app on every image. That is not
+decoration. A CC BY photograph shown without attribution is a licence
+breach, so `js/imagelib.js` drops any manifest entry missing an author or a
+licence rather than displaying it.
+
+## After fetching
+
+`--fetch` seeds `alt.en` from the location name and leaves `alt.pl` empty on
+purpose, so the Polish is written by someone who speaks it rather than
+invented by the tool. Look through the pictures by eye before committing —
+geosearch and text search both return the occasional photograph that is
+near the right place and of the wrong thing.

@@ -29,11 +29,21 @@ your Playwright install differs.
 | `terrain` | the map sprite mounts once, redraws stay cheap, no console errors |
 | `contrast` | every piece of text measured against its real composited background, both themes |
 | `sweep` | every view renders in both themes with no page errors |
+| `dom` | the render layer: a quote cannot escape an attribute, `render()` refuses an unescaped string, and `list()` reuses elements rather than rebuilding them — which is the whole reason it exists, and invisible when it works |
+| `media` | image loading: an image 4000px down the page is not fetched until it is scrolled towards, a released object URL is genuinely revoked, and a 404 leaves a placeholder rather than a broken-image icon |
 | `nav` | the phone menu and the leaderboard's fit at 320/390px: bottom-left button, every destination on screen at once, nothing under the button, toggles and closes; and the header bar returns on a desktop |
 
 `contrast` composites translucent layers before measuring. An earlier
 version read a 4.5%-alpha wash as solid black and reported confident
 nonsense, so if you change it, keep the compositing.
+
+It now also measures text over photography, which that walk cannot do:
+a gradient scrim is a background-*image*, so compositing background
+colours reads straight through it to the card underneath and reports a
+number that has nothing to do with what is on the screen. For those the
+test hides the text, screenshots the box it sat in, and takes the worst
+pixel — against an injected pure-white frame, the brightest thing a
+photograph can be. If it passes that, it passes over any real picture.
 
 `i18n-parity` needs no browser and no server — it parses the source. The
 rest do.

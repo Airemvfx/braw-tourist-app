@@ -3,6 +3,68 @@ const lum = ([r,g,b]) => { const f=v=>{v/=255;return v<=0.03928?v/12.92:((v+0.05
   return 0.2126*f(r)+0.7152*f(g)+0.0722*f(b); };
 const ratio=(a,b)=>{const[x,y]=[lum(a),lum(b)].sort((p,q)=>q-p);return (x+0.05)/(y+0.05);};
 const parse=s=>(s.match(/[\d.]+/g)||[]).slice(0,3).map(Number);
+
+// ---------------------------------------------------------------------
+// Text over a photograph.
+//
+// The bgOf() walk above composites backgroundColor up the ancestor
+// chain, which is right for text on a surface and fiction for text on a
+// picture: a gradient scrim is a background-IMAGE, so the walk reads
+// through it as transparent and reports the card colour underneath.
+// That is a confident wrong answer, which is worse than no answer.
+//
+// So measure what is actually on the screen. Hide the text, photograph
+// the box it sat in, and take the WORST pixel under it — not the mean,
+// because a caption is unreadable if any part of it is, and a bright
+// sky in one corner is exactly how that happens.
+// ---------------------------------------------------------------------
+async function worstBehind(page, sel) {
+  const fg = await page.evaluate(s => {
+    const el = document.querySelector(s);
+    return el ? getComputedStyle(el).color : null;
+  }, sel);
+  if (!fg) return null;
+
+  // Inject by hand rather than through addStyleTag, which takes no id —
+  // so the rules could not be removed again and simply piled up. The
+  // second theme then read its colour through an earlier run's
+  // transparency, got rgba(0,0,0,0), and measured white text as black.
+  const hide = async on => page.evaluate(([s, on]) => {
+    document.getElementById('contrast-probe')?.remove();
+    if (!on) return;
+    const st = document.createElement('style');
+    st.id = 'contrast-probe';
+    st.textContent = `${s}, ${s} * { color: transparent !important; text-shadow: none !important; }`;
+    document.head.appendChild(st);
+  }, [sel, on]);
+
+  await hide(true);
+  const box = await page.locator(sel).first().boundingBox();
+  if (!box || box.width < 2 || box.height < 2) { await hide(false); return null; }
+  const shot = (await page.screenshot({ clip: box })).toString('base64');
+  await hide(false);
+
+  const px = await page.evaluate(async b64 => {
+    const img = new Image();
+    img.src = 'data:image/png;base64,' + b64;
+    await img.decode();
+    const c = document.createElement('canvas');
+    c.width = img.width; c.height = img.height;
+    c.getContext('2d').drawImage(img, 0, 0);
+    const d = c.getContext('2d').getImageData(0, 0, img.width, img.height).data;
+    const out = [];
+    for (let i = 0; i < d.length; i += 4) out.push([d[i], d[i + 1], d[i + 2]]);
+    return out;
+  }, shot);
+
+  let worst = Infinity, at = null;
+  for (const p of px) {
+    const r = ratio(parse(fg), p);
+    if (r < worst) { worst = r; at = p; }
+  }
+  return { fg, worst, at };
+}
+
 (async()=>{
   const b=await chromium.launch({executablePath:'/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
     args:['--no-sandbox','--disable-setuid-sandbox','--ignore-certificate-errors']});
@@ -76,5 +138,52 @@ const parse=s=>(s.match(/[\d.]+/g)||[]).slice(0,3).map(Number);
     for (const k of ['forest','farm','water','built'])
       console.log(`  ${ratio(parse(map[k]),parse(map.land)).toFixed(2)}:1  ${k} vs base land (needs to be TELLABLE, not readable)`);
   }
+
+  // ---- the scrim, against the worst thing a photograph can be ----
+  //
+  // Injected rather than waited for: this measures the PRIMITIVE, not
+  // whichever picture happens to be on screen. A pure white frame is the
+  // brightest a photograph can get, so if white caption text clears AA
+  // over that, it clears it over every real photograph too.
+  let photoFails = 0;
+  for (const theme of ['dark', 'light']) {
+    await p.evaluate(m => document.querySelector(`.app-foot [data-theme-mode="${m}"]`).click(), theme);
+    await p.waitForTimeout(300);
+    await p.evaluate(() => {
+      document.getElementById('scrim-probe')?.remove();
+      const white = 'data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==';
+      const box = document.createElement('div');
+      box.id = 'scrim-probe';
+      box.style.cssText = 'position:fixed;left:20px;top:20px;width:320px;z-index:99999';
+      box.innerHTML = `
+        <div class="media">
+          <img class="media-img is-loaded" src="${white}" alt="">
+          <div class="media-scrim"></div>
+          <div class="media-caption">
+            <span class="mc-title">Probe title</span>
+            <span class="mc-sub">Probe subtitle line</span>
+          </div>
+          <div class="media-credit">Author · CC BY-SA 4.0</div>
+        </div>`;
+      document.body.appendChild(box);
+    });
+    await p.waitForTimeout(250);
+    console.log(`\n--- ${theme}: white photograph under the scrim ---`);
+    for (const sel of ['#scrim-probe .mc-title', '#scrim-probe .mc-sub', '#scrim-probe .media-credit']) {
+      const r = await worstBehind(p, sel);
+      if (!r) { console.log(`  (absent) ${sel}`); continue; }
+      const ok = r.worst >= 4.5;
+      if (!ok) photoFails++;
+      console.log(`  ${r.worst.toFixed(2).padStart(5)}:1  ${ok ? 'AA  ' : 'FAIL'}  ${sel.replace('#scrim-probe ', '')}`
+        + `  (worst pixel rgb(${r.at.join(', ')}))`);
+    }
+    await p.evaluate(() => document.getElementById('scrim-probe')?.remove());
+  }
+
   await b.close();
+  if (photoFails) {
+    console.log(`\n${photoFails} text-over-photograph check(s) below AA — the scrim is too thin.`);
+    process.exit(1);
+  }
+  console.log('\ntext over photography: all good');
 })();

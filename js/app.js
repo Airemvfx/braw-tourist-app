@@ -74,7 +74,13 @@ let pendingLocalKey = null;
 
 const $ = sel => document.querySelector(sel);
 const $$ = sel => [...document.querySelectorAll(sel)];
-const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+// Escapes for both text and attribute positions. It used to cover only
+// & and <, which is enough between tags but not inside quotes — and it is
+// used inside quotes in 23 places. Nothing user-typed reaches an attribute
+// today (they hold ids and booleans), so this was latent rather than
+// exploitable; it stops being latent the moment anyone can type a caption.
+const ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+const esc = s => String(s).replace(/[&<>"']/g, c => ESCAPES[c]);
 
 // ============================================================
 // Boot

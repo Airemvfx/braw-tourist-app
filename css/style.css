@@ -52,6 +52,24 @@
   --font-mono:    'IBM Plex Mono', Consolas, monospace;
 
   --r:      14px;
+
+  /* Spacing. There was no scale here — every margin was a hand-picked rem
+     value, which is survivable for a page of prose and falls apart the
+     moment things have to line up in a grid. Layout uses these; decoration
+     (optical nudges, icon insets) can still pick its own number. */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+  --space-8: 4rem;
+
+  /* Aspect ratios for media boxes, so a grid of cards cannot go ragged. */
+  --ratio-wide:  16 / 10;
+  --ratio-photo: 4 / 3;
+  --ratio-hero:  21 / 9;
   --shadow: 0 12px 36px rgba(0,0,0,0.5);
 
   /* Neutrals that must invert between themes. Brand accents (amber, sage,
@@ -3367,3 +3385,144 @@ body.mapfs-open { overflow: hidden; }
   .user-location.is-found .ul-dot,
   .user-location.is-found .ul-lock { animation: none; }
 }
+
+/* ============================================================
+   MEDIA — pictures as the primary content
+   ============================================================
+   Before this section the stylesheet had exactly one aspect-ratio box
+   in 3,300 lines: the landing carousel. Everything else was text in a
+   card with an emoji beside it. These are the primitives an image-led
+   layout needs, and nothing here knows what it is a picture *of*.
+
+   On the scrim, and why it is dark in both themes:
+
+   A photograph is not a colour, so text over one cannot be checked the
+   way text on a surface is — there is no single background to measure
+   against. The scrim exists to make that measurable again. Its floor
+   is set so that the worst case a photograph can present, a pure white
+   frame, still composites to about 9:1 against white text; a normal
+   picture lands far above that. That is a property of the gradient
+   stops below, so if you change them, re-run tests/contrast.js rather
+   than trusting how it looks on the picture in front of you.
+
+   It stays dark under a light theme for the same reason. The surface
+   behind it is the photograph, not the page. */
+
+.media {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  border-radius: var(--r);
+  background: var(--inset-2);
+  aspect-ratio: var(--ratio-wide);
+}
+.media.is-photo { aspect-ratio: var(--ratio-photo); }
+.media.is-hero  { aspect-ratio: var(--ratio-hero); }
+.media.is-square { aspect-ratio: 1; }
+
+.media-img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: block;
+  /* Held back until the file has actually decoded, so a half-painted
+     image never appears under the text and then jumps. */
+  opacity: 0;
+  transition: opacity 420ms var(--ease-out);
+}
+.media-img.is-loaded { opacity: 1; }
+
+/* A file that is missing has to look intended. A broken-image icon in a
+   grid of photographs reads as a bug even when the truth is that nobody
+   has taken that picture yet. */
+.media-img.is-failed { opacity: 0; }
+.media::before {
+  content: '';
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(120% 90% at 50% 0%, var(--wash-1), transparent 70%),
+    var(--inset-2);
+  z-index: 0;
+}
+.media > * { position: relative; z-index: 1; }
+
+/* The scrim. Only drawn where text sits, so the top of the picture is
+   left alone. */
+.media-scrim {
+  position: absolute; inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: linear-gradient(
+    to top,
+    rgba(6,10,16,0.88) 0%,
+    rgba(6,10,16,0.78) 26%,
+    rgba(6,10,16,0.38) 52%,
+    rgba(6,10,16,0.00) 78%);
+}
+.media-scrim.is-full { background: rgba(6,10,16,0.62); }
+
+/* Text laid over a picture. Always white-on-scrim, never themed. */
+.media-caption {
+  position: absolute; z-index: 3;
+  left: 0; right: 0; bottom: 0;
+  padding: var(--space-4);
+  color: #fff;
+  display: flex; flex-direction: column; gap: var(--space-1);
+}
+.media-caption .mc-title {
+  font-family: var(--font-display);
+  font-size: 1.35rem; line-height: 1.15;
+  letter-spacing: -0.015em;
+  color: #fff;
+}
+.media-caption .mc-sub {
+  font-size: 0.82rem;
+  color: rgba(255,255,255,0.86);
+}
+
+/* Attribution. Wikimedia Commons licences vary per file and every one
+   of them requires credit, so this is not optional chrome — a library
+   image without it is a licence breach. Small, out of the way, and
+   always present. */
+.media-credit {
+  position: absolute; z-index: 3;
+  right: var(--space-2); bottom: var(--space-1);
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  line-height: 1.3;
+  color: rgba(255,255,255,0.72);
+  text-shadow: 0 1px 3px rgba(0,0,0,0.9);
+  max-width: 70%;
+  text-align: right;
+}
+.media-credit a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.media-caption + .media-credit { bottom: var(--space-1); }
+
+/* A grid of pictures. The minmax floor is what stops a phone showing
+   one enormous card and a desktop showing eight thin ones. */
+.media-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr));
+  gap: var(--space-3);
+}
+.media-grid.is-tight {
+  grid-template-columns: repeat(auto-fill, minmax(min(110px, 100%), 1fr));
+  gap: var(--space-2);
+}
+
+/* A card that IS its picture — the cover-photo pattern the trip list,
+   the plan results and the profile all share. Built on .card so it
+   inherits the surface, border and shadow rather than restating them. */
+.cover-card {
+  position: relative;
+  padding: 0;
+  overflow: hidden;
+  display: flex; flex-direction: column;
+  transition: transform 220ms var(--ease-out), box-shadow 220ms var(--ease-out);
+}
+.cover-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-lift, var(--shadow)); }
+@media (prefers-reduced-motion: reduce) {
+  .cover-card, .cover-card:hover { transform: none; transition: none; }
+  .media-img { transition: none; }
+}
+.cover-card .media { border-radius: 0; }
+.cover-card-body { padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-2); }
