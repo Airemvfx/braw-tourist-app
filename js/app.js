@@ -33,8 +33,8 @@ import {
   readBackup, backupSummary,
 } from './exporter.js';
 import { html, raw, render, list, action, mountActions } from './dom.js';
-import { imgHTML, mountLazy, scopedUrl, releaseScope } from './media.js';
-import { loadLibrary, firstImage, altOf, creditHTML } from './imagelib.js';
+import { imgHTML, mountLazy, scopedUrl, releaseScope, imageUrl } from './media.js';
+import { loadLibrary, firstImage, imageFor, altOf, creditHTML } from './imagelib.js';
 import { renderHero } from './hero-scene.js';
 import { renderShowcase, startShowcase, stopShowcase } from './showcase.js';
 import { loadPhotos, hasPhotos, mountBackdrop, mountCarousel, stopCarousel } from './photos-hero.js';
@@ -1593,7 +1593,7 @@ function stopListHTML(trip, interactive) {
       <div class="sl-item ${visited ? 'is-visited' : ''}" data-poi="${id}">
         <button type="button" class="sl-row" data-toggle="${id}" aria-expanded="false">
           <span class="sl-order">${visited ? '✓' : order}</span>
-          <span class="sl-icon">${poi.icon}</span>
+          <span class="sl-thumb" data-stop-thumb="${id}">${poi.icon}</span>
           <span class="sl-name">${esc(poiName(poi))}</span>
           <span class="sl-caret" aria-hidden="true">⌄</span>
         </button>
@@ -2052,6 +2052,7 @@ function renderTripDetail() {
   });
   wireStopList(host, trip);
   hydratePhotos(host);
+  hydrateStopThumbs(host);
   renderGeoBar(trip);
   watchStops(stops.filter(x => !x.visited).map(x => x.poi));
   updateUserDot(host, locationState().position);
@@ -2148,6 +2149,55 @@ let photoTarget = null;
  * account with three hundred photographs does not decode all of them to
  * put four thumbnails on a page.
  */
+/**
+ * The square beside each stop in the list.
+ *
+ * A stop list is a plan — the point of it is to scan fifteen places at
+ * once — so this is a thumbnail rather than the full-width photo band a
+ * journal would use. Turning each stop into a band would make a
+ * fortnight's trip a page nobody can read.
+ *
+ * What goes in it, in order: a photograph the traveller took at that
+ * place on this trip, then the library photograph, then the emoji it
+ * has always shown. So the list stays a plan, and fills in with their
+ * own pictures as they actually travel.
+ */
+async function hydrateStopThumbs(scope, trip = null) {
+  const cells = [...scope.querySelectorAll('[data-stop-thumb]')];
+  if (!cells.length) return;
+  const tripId = (trip || user.trips.find(t2 => t2.id === openTripId))?.id || '';
+
+  releaseScope('stop-thumbs');
+  for (const cell of cells) {
+    const poiId = cell.dataset.stopThumb;
+    let url = '', alt = '';
+    try {
+      const own = await coverFor(user.id, tripId, poiId);
+      if (own) url = scopedUrl('stop-thumbs', own.thumbBlob || own.thumb);
+    } catch { /* an unreadable store just leaves the emoji */ }
+    if (!url) {
+      const entry = imageFor(poiId);
+      if (entry) { url = imageUrl(entry.file); alt = altOf(entry); }
+    }
+    if (!url) continue;
+
+    const img = document.createElement('img');
+    img.decoding = 'async';
+    img.loading = 'lazy';
+    img.alt = alt;
+    // A thumbnail that fails goes back to the emoji rather than showing
+    // a broken frame in the middle of a list.
+    img.addEventListener('error', () => {
+      cell.classList.remove('has-shot');
+      cell.textContent = POI_BY_ID[poiId]?.icon || '';
+    }, { once: true });
+    img.src = url;
+    cell.textContent = '';
+    cell.classList.add('has-shot');
+    cell.appendChild(img);
+  }
+}
+
 async function hydratePhotos(scope, trip = null) {
   const tripId = (trip || user.trips.find(t2 => t2.id === openTripId))?.id || '';
   const slots = [...scope.querySelectorAll('[data-photo-slot]')]

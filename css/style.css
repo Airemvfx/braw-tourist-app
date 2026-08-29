@@ -839,7 +839,7 @@ small { font-size: 0.78em; }
 }
 .sl-row {
   width: 100%; display: grid;
-  grid-template-columns: 30px 24px 1fr 18px;
+  grid-template-columns: 30px 40px 1fr 18px;
   align-items: center; gap: 0.6rem;
   padding: 0.7rem 0.85rem; cursor: pointer; text-align: left;
   background: none; border: 0; color: var(--text); font-family: var(--font-ui);
@@ -852,6 +852,17 @@ small { font-size: 0.78em; }
   border: 1px solid rgba(201,138,64,0.28);
 }
 .sl-icon { font-size: 1.05rem; text-align: center; }
+/* The stop's own square: emoji until there is a photograph of the place,
+   the photograph once there is one. Fixed size either way, so the list
+   does not reflow as pictures arrive. */
+.sl-thumb {
+  width: 40px; height: 40px; border-radius: 9px;
+  display: grid; place-items: center; font-size: 1.05rem;
+  background: var(--inset-2); overflow: hidden; flex-shrink: 0;
+}
+.sl-thumb.has-shot { background: var(--inset-3); }
+.sl-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.sl-item.is-visited .sl-thumb.has-shot { box-shadow: 0 0 0 1.5px var(--gold) inset; }
 .sl-name { font-size: 0.92rem; font-weight: 500; min-width: 0; }
 .sl-caret { color: var(--text-faint); transition: transform 0.22s var(--ease-out); font-size: 0.9rem; }
 .sl-item.is-open { border-color: rgba(201,138,64,0.42); background: rgba(201,138,64,0.05); }
