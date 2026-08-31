@@ -44,6 +44,7 @@ import { seasonalNow, seasonalNext, monthName } from './seasons.js';
 import {
   addPhoto, getPhoto, deletePhoto, allPhotos, photosForTrip, coverFor,
   photoCount as countPhotos, putPhotoRecord, reassign, printGrade, printDpi,
+  photoBlob, dataUrlToBlob, upgradeStoredPhotos,
 } from './photos.js';
 import {
   storageHealth, requestPersistence, hasAskedForPersistence, exportPhotoFiles,
@@ -107,6 +108,12 @@ function enterApp() {
   $('#app-screen').hidden = false;
   renderHeader();
   switchView(homeView());
+
+  // Convert any photographs still held as base64 data URLs, a few at a
+  // time, once the first view is on screen. Never awaited: it is a
+  // storage tidy-up, not something anybody is waiting to see, and every
+  // reader accepts both shapes so an interrupted run costs nothing.
+  requestAnimationFrame(() => { upgradeStoredPhotos(user.id).catch(() => {}); });
 }
 
 /** Landing view: your quests if you have any, otherwise the planner. */
@@ -2230,7 +2237,7 @@ function attachThumb(slot, record) {
   fig.type = 'button';
   fig.className = 'stop-photo';
   fig.title = label;
-  fig.innerHTML = `<img src="${record.thumb}" alt="${esc(label)}" loading="lazy">`;
+  fig.innerHTML = `<img src="${scopedUrl('stop-photos', photoBlob(record, 'thumb'))}" alt="${esc(label)}" loading="lazy">`;
   fig.addEventListener('click', e => { e.stopPropagation(); openPhoto(record); });
   slot.appendChild(fig);
 
@@ -2241,7 +2248,11 @@ function attachThumb(slot, record) {
 
 function openPhoto(record) {
   const poi = POI_BY_ID[record.poiId];
-  $('#photo-viewer-img').src = record.full || record.thumb;
+  // Its own scope, released by closePhoto. This is the print-resolution
+  // copy — about a megabyte — so holding one per photograph anybody has
+  // ever opened is the largest leak this store could produce.
+  releaseScope('photo-viewer');
+  $('#photo-viewer-img').src = scopedUrl('photo-viewer', photoBlob(record, 'full'));
   $('#photo-viewer-img').alt = t('photo.alt', { name: poiName(poi) });
 
   const uploaded = Boolean(record.remote);
@@ -2279,6 +2290,10 @@ function openPhoto(record) {
 function closePhoto() {
   $('#photo-viewer').hidden = true;
   $('#photo-viewer-img').src = '';
+  // Clearing src is not enough now that it holds an object URL: the
+  // browser keeps the blob alive until it is revoked, and this one is
+  // the print-resolution copy.
+  releaseScope('photo-viewer');
 }
 
 /**
@@ -2836,7 +2851,7 @@ function builderHTML() {
     const dpi = printDpi(p, product.printWidthMm);
     const poi = POI_BY_ID[p.poiId];
     return `<button type="button" class="cal-slot grade-${grade}" data-slot="${i}">
-      <img src="${p.thumb}" alt="">
+      <img src="${scopedUrl('store', photoBlob(p, 'thumb'))}" alt="">
       <span class="cs-month">${esc(label)}</span>
       <span class="cs-where">${poi ? esc(poiName(poi)) : ''}</span>
       ${grade === 'good' ? '' : `<span class="cs-grade">${esc(t(`shop.grade.${grade}`))}${dpi ? ` · ${dpi} dpi` : ''}</span>`}
@@ -2936,7 +2951,7 @@ async function openSlotPicker(index) {
         const poi = POI_BY_ID[p.poiId];
         const grade = printGrade(p, storeProduct.printWidthMm);
         return `<button type="button" class="pick grade-${grade}" data-pick="${p.id}">
-          <img src="${p.thumb}" alt="">
+          <img src="${scopedUrl('store', photoBlob(p, 'thumb'))}" alt="">
           <span>${poi ? esc(poiName(poi)) : ''}</span>
           ${grade === 'poor' ? `<span class="pick-warn">${esc(t('shop.grade.poor'))}</span>` : ''}
         </button>`;
@@ -3472,10 +3487,20 @@ function wireDataControls() {
       let dropped = 0;
       for (const p of data.photos || []) {
         try {
+          // A backup holds data URLs, because it is JSON. Convert on the
+          // way in rather than leaving the restored records for the
+          // background pass to find: a restore is already the slow,
+          // deliberate operation, and this way the store is never
+          // half-converted straight after one.
+          const thumbBlob = dataUrlToBlob(p.thumb);
+          const fullBlob = dataUrlToBlob(p.full || p.thumb);
+          const { thumb, full, ...rest } = p;
           await putPhotoRecord({
-            ...p,
+            ...rest,
             owner: user.id,
-            full: p.full || p.thumb,
+            thumbBlob,
+            fullBlob,
+            bytes: thumbBlob.size + fullBlob.size,
             remote: null,            // the copy is local again; re-upload if wanted
           });
           photos++;

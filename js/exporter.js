@@ -16,7 +16,7 @@
 import { POI_BY_ID } from './data.js';
 import { poiName, poiBlurb, regionName, cityName } from './i18n.js';
 import { tripStopIds, tripTitle } from './planner.js';
-import { allPhotos } from './photos.js';
+import { allPhotos, photoDataUrl } from './photos.js';
 
 const xml = s => String(s)
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -169,15 +169,20 @@ export async function buildBackup(user, { photos = 'full' } = {}) {
   if (photos === 'full' && !withFull) data.photoScope = 'thumbs';
   data.truncated = photos === 'full' && !withFull;
 
-  data.photos = rows.map(p => ({
+  // The backup is JSON and JSON cannot hold a Blob, so this is the one
+  // place that still wants data URLs — and the only reason
+  // photoDataUrl() exists. BACKUP_VERSION deliberately does not change:
+  // the file format is exactly what it was, whatever shape the store
+  // happens to be in, so files already in the wild keep restoring.
+  data.photos = await Promise.all(rows.map(async p => ({
     id: p.id,
     tripId: p.tripId,
     poiId: p.poiId,
     at: p.at,
     w: p.w, h: p.h, bytes: p.bytes,
-    thumb: p.thumb,
-    full: withFull ? p.full : null,
-  }));
+    thumb: await photoDataUrl(p, 'thumb'),
+    full: withFull ? await photoDataUrl(p, 'full') : null,
+  })));
   return data;
 }
 

@@ -31,7 +31,7 @@
 // browser API returned true.
 // ============================================================
 
-import { allPhotos } from './photos.js';
+import { allPhotos, photoBlob } from './photos.js';
 
 export const DURABILITY = {
   PERSISTED: 'persisted',   // the browser has promised not to evict
@@ -185,15 +185,11 @@ export function markBackupSuggested() {
 // Getting the photographs off the device
 // ------------------------------------------------------------------
 
-const b64 = dataUrl => String(dataUrl).slice(String(dataUrl).indexOf(',') + 1);
-
-/** A data URL back to bytes, for saving or uploading. */
-export function dataUrlToBlob(dataUrl, type = 'image/jpeg') {
-  const bin = atob(b64(dataUrl));
-  const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  return new Blob([bytes], { type });
-}
+// dataUrlToBlob now lives in js/photos.js, beside the store whose shape
+// it exists to convert — and where cloud.js was already reaching for it
+// through this module, which was the wrong way round. Re-exported so
+// nothing that imports it from here has to move.
+export { dataUrlToBlob } from './photos.js';
 
 /**
  * Save every photograph as an ordinary .jpg.
@@ -218,7 +214,7 @@ export async function exportPhotoFiles(owner, nameFor, onProgress) {
       for (const p of photos) {
         const handle = await dir.getFileHandle(nameFor(p), { create: true });
         const writable = await handle.createWritable();
-        await writable.write(dataUrlToBlob(p.full || p.thumb));
+        await writable.write(photoBlob(p, 'full'));
         await writable.close();
         saved++;
         onProgress?.(saved, photos.length);
@@ -235,7 +231,7 @@ export async function exportPhotoFiles(owner, nameFor, onProgress) {
 
   let saved = 0;
   for (const p of photos) {
-    const url = URL.createObjectURL(dataUrlToBlob(p.full || p.thumb));
+    const url = URL.createObjectURL(photoBlob(p, 'full'));
     const a = document.createElement('a');
     a.href = url;
     a.download = nameFor(p);

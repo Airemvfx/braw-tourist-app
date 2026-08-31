@@ -127,7 +127,9 @@ const MAKE_FILE = `
     const A4 = 297, MAGNET = 70;
     return {
       bigW: big.w, bigH: big.h,
-      thumbSmaller: big.thumb.length < big.full.length,
+      thumbSmaller: big.thumbBlob.size < big.fullBlob.size,
+      storesBlobs: big.thumbBlob instanceof Blob && big.fullBlob instanceof Blob,
+      noDataUrls: big.thumb === undefined && big.full === undefined,
       smallNotUpscaled: small.w,
       bigOnA4: m.printGrade(big, A4), bigDpi: m.printDpi(big, A4),
       smallOnA4: m.printGrade(small, A4),
@@ -138,6 +140,8 @@ const MAKE_FILE = `
 
   ok(grades.bigW === 3000, `a 4032px photograph is stored at 3000px (got ${grades.bigW})`);
   ok(grades.thumbSmaller, 'the thumbnail is smaller than the print copy');
+  ok(grades.storesBlobs, 'renditions are stored as Blobs, not base64 data URLs');
+  ok(grades.noDataUrls, 'and the old data-URL fields are gone from a new record');
   ok(grades.smallNotUpscaled === 640, 'a small photograph is not upscaled');
   ok(grades.bigOnA4 === 'good', `3000px prints well at A4 (${grades.bigDpi} dpi)`);
   ok(grades.smallOnA4 === 'poor', '640px is refused for an A4 calendar');
@@ -224,14 +228,66 @@ const MAKE_FILE = `
 
     const source = hasExif(withExif);
     const rec = await photos.addPhoto('u3', { poiId: 'iona' }, file);
-    const stored = hasExif(await v.dataUrlToBlob(rec.full).arrayBuffer());
-    return { source, stored, decoded: rec.w > 0 };
+    // The stored bytes directly now, rather than a data URL decoded back
+    // into bytes — a shorter path to the same assertion, and it is the
+    // bytes that actually reach a disk or an upload.
+    const stored = hasExif(await photos.photoBlob(rec, 'full').arrayBuffer());
+    return { source, stored, decoded: rec.w > 0, viaVault: typeof v.dataUrlToBlob === 'function' };
   });
 
   ok(exif.source.exif && exif.source.gps, 'the test image really did carry EXIF and a GPS tag');
   ok(exif.decoded, 'and it still decoded normally');
   ok(!exif.stored.exif, 'the stored photograph has no EXIF segment');
   ok(!exif.stored.gps, 'and no GPS tag — the privacy policy is telling the truth');
+  ok(exif.viaVault, 'vault.js still re-exports dataUrlToBlob for anything that imported it there');
+
+  // ---------------------------------------------------------------
+  console.log('\n-- a v2 store upgrades to Blobs without losing anything --');
+  //
+  // The conversion runs in the background rather than inside the
+  // versionchange transaction, so a half-converted store is a normal
+  // state and every reader has to cope with it. That is the thing worth
+  // testing: photographs are the one item in this app that cannot be
+  // regenerated.
+  // ---------------------------------------------------------------
+  const upgraded = await page.evaluate(async () => {
+    const m = await import('/js/photos.js');
+    // A record in the old shape, written straight past addPhoto.
+    const dataUrl = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2Q==';
+    const legacy = {
+      id: 'ph_legacy_1', owner: 'u9', tripId: 't1', poiId: 'iona',
+      at: 1700000000000, thumb: dataUrl, full: dataUrl,
+      w: 800, h: 600, bytes: 42, remote: null,
+    };
+    await m.putPhotoRecord(legacy);
+
+    // Readable before any conversion happens.
+    const beforeBlob = m.photoBlob(await m.getPhoto('ph_legacy_1'), 'full');
+    const before = { isBlob: beforeBlob instanceof Blob, size: beforeBlob.size };
+
+    const converted = await m.upgradeStoredPhotos('u9');
+    const after = await m.getPhoto('ph_legacy_1');
+    return {
+      before, converted,
+      isBlob: after.thumbBlob instanceof Blob && after.fullBlob instanceof Blob,
+      dropped: after.thumb === undefined && after.full === undefined,
+      keptId: after.id, keptTrip: after.tripId, keptPoi: after.poiId, keptAt: after.at,
+      bytesReal: after.bytes === after.thumbBlob.size + after.fullBlob.size,
+      sameBytes: after.fullBlob.size === before.size,
+      idempotent: await m.upgradeStoredPhotos('u9'),
+    };
+  });
+
+  ok(upgraded.before.isBlob, 'an unconverted record is readable through photoBlob');
+  ok(upgraded.converted === 1, `the background pass converts it (${upgraded.converted})`);
+  ok(upgraded.isBlob, 'and it now holds Blobs');
+  ok(upgraded.dropped, 'with the data-URL fields removed');
+  ok(upgraded.keptId === 'ph_legacy_1' && upgraded.keptTrip === 't1'
+    && upgraded.keptPoi === 'iona' && upgraded.keptAt === 1700000000000,
+    'id, journey, location and date all survive');
+  ok(upgraded.sameBytes, 'the image bytes are unchanged, not re-encoded');
+  ok(upgraded.bytesReal, 'and the stored size becomes the real one');
+  ok(upgraded.idempotent === 0, 'running it again converts nothing');
 
   ok(errors.length === 0, `no page errors (${errors.join(' | ') || 'none'})`);
 

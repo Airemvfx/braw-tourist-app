@@ -37,10 +37,28 @@
 // this journey?" — which is exactly the question a calendar asks. v2
 // gives every photograph its own id and remembers the journey it
 // belongs to. The upgrade below carries v1 photographs across.
+//
+// ---- Blobs, not data URLs (v3) ----
+//
+// v2 kept both renditions as base64 data URLs. That is about a third
+// more bytes than the image needs, it cannot be cached by the browser,
+// and it puts the whole photograph into the DOM as text. One of those
+// in a page is fine; sixty in a profile grid is not, which is what the
+// image-led redesign asks for.
+//
+// The conversion deliberately does NOT run inside the versionchange
+// transaction, the way v1 → v2 did. That walk was safe because v1
+// photographs were 1024px. Decoding a few hundred ~1.3MB base64 strings
+// in one transaction is hundreds of megabytes of allocation churn on a
+// phone, and losing that transaction means losing the store. So the
+// upgrade claims the version and nothing else; upgradeStoredPhotos()
+// converts afterwards, a few at a time, off the boot path. Every reader
+// below accepts either shape, for ever — an interrupted conversion
+// leaves a perfectly readable record.
 // ============================================================
 
 const DB_NAME = 'braw_photos_v1';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const OLD_STORE = 'photos';
 const STORE = 'shots';
 
@@ -99,6 +117,12 @@ function openDB() {
           cur.continue();
         };
       }
+
+      // v2 → v3 changes what a record holds, not the shape of the store,
+      // so there is nothing to do here. Claiming the version is still
+      // worth it: an older tab running v2 code then fails loudly with a
+      // VersionError rather than quietly reading a record whose
+      // renditions it cannot decode.
     };
 
     req.onsuccess = () => resolve(req.result);
@@ -165,7 +189,14 @@ async function decode(file) {
   });
 }
 
-/** Draw at most `edge` px on the longest side. Never upscales. */
+/**
+ * Draw at most `edge` px on the longest side. Never upscales.
+ *
+ * toBlob rather than toDataURL: the bytes are what we store now, and
+ * base64 would only be encoded here to be decoded again on every read.
+ * Re-encoding through a canvas is also what strips EXIF — GPS included —
+ * which the privacy policy claims and tests/photos.js asserts.
+ */
 function render(source, srcW, srcH, edge, quality) {
   const scale = Math.min(1, edge / Math.max(srcW, srcH));
   const w = Math.max(1, Math.round(srcW * scale));
@@ -175,7 +206,11 @@ function render(source, srcW, srcH, edge, quality) {
   const ctx = canvas.getContext('2d');
   ctx.imageSmoothingQuality = 'high';
   ctx.drawImage(source, 0, 0, w, h);
-  return { dataUrl: canvas.toDataURL('image/jpeg', quality), w, h };
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      blob => (blob ? resolve({ blob, w, h }) : reject(new Error('could not encode image'))),
+      'image/jpeg', quality);
+  });
 }
 
 /**
@@ -186,18 +221,108 @@ export async function renditions(file) {
   if (!file || !String(file.type).startsWith('image/')) throw new Error('not an image');
   const { source, width, height, done } = await decode(file);
   try {
-    const full = render(source, width, height, FULL_EDGE, FULL_Q);
-    const thumb = render(source, width, height, THUMB_EDGE, THUMB_Q);
+    const full = await render(source, width, height, FULL_EDGE, FULL_Q);
+    const thumb = await render(source, width, height, THUMB_EDGE, THUMB_Q);
     return {
-      thumb: thumb.dataUrl,
-      full: full.dataUrl,
+      thumbBlob: thumb.blob,
+      fullBlob: full.blob,
       w: full.w,
       h: full.h,
-      bytes: approxBytes(full.dataUrl) + approxBytes(thumb.dataUrl),
+      // A real byte count now, rather than an estimate from a base64
+      // string length. The storage panel gets more honest for free.
+      bytes: full.blob.size + thumb.blob.size,
     };
   } finally {
     done();
   }
+}
+
+// ------------------------------------------------------------------
+// Reading a rendition, whichever shape the record is in
+//
+// Every record is either v3 (Blobs) or older (data URLs), and will be
+// for as long as anyone has an account that has not finished converting.
+// Nothing outside this file should have to know which.
+// ------------------------------------------------------------------
+
+/** A data URL turned back into bytes. */
+export function dataUrlToBlob(dataUrl, type = 'image/jpeg') {
+  const comma = String(dataUrl).indexOf(',');
+  const meta = String(dataUrl).slice(0, comma);
+  const body = String(dataUrl).slice(comma + 1);
+  const mime = (meta.match(/data:([^;,]+)/) || [])[1] || type;
+  const bin = atob(body);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes], { type: mime });
+}
+
+/** The bytes of one rendition, or null. Accepts v3 and older records. */
+export function photoBlob(record, which = 'thumb') {
+  if (!record) return null;
+  const blob = record[`${which}Blob`];
+  if (blob instanceof Blob) return blob;
+  // A legacy v1 photograph has only the one rendition under both names.
+  const url = record[which] || record.thumb;
+  return url ? dataUrlToBlob(url) : null;
+}
+
+/**
+ * A rendition as a data URL.
+ *
+ * Only the backup file needs this — it is JSON, and JSON cannot hold a
+ * Blob. Everything on screen should use photoBlob and an object URL.
+ */
+export function photoDataUrl(record, which = 'thumb') {
+  const existing = record && (record[which] || (which === 'full' ? record.thumb : null));
+  if (typeof existing === 'string') return Promise.resolve(existing);
+  const blob = photoBlob(record, which);
+  if (!blob) return Promise.resolve('');
+  return new Promise(resolve => {
+    const fr = new FileReader();
+    fr.onload = () => resolve(String(fr.result));
+    fr.onerror = () => resolve('');
+    fr.readAsDataURL(blob);
+  });
+}
+
+/** Has this record been converted to Blobs yet? */
+export const isConverted = r => r && r.thumbBlob instanceof Blob;
+
+const idle = () => new Promise(resolve => {
+  if (typeof requestIdleCallback === 'function') requestIdleCallback(() => resolve(), { timeout: 500 });
+  else setTimeout(resolve, 0);
+});
+
+/**
+ * Convert stored photographs to Blobs, a few at a time, when idle.
+ *
+ * Called once after the first view has rendered, and never awaited. A
+ * record that fails — a full disk, a truncated data URL — is left
+ * exactly as it was and tried again next time, which is why every
+ * reader above still accepts the old shape.
+ */
+export async function upgradeStoredPhotos(owner, { batch = 4 } = {}) {
+  let rows = [];
+  try { rows = await allPhotos(owner); } catch { return 0; }
+  const stale = rows.filter(r => typeof r.thumb === 'string');
+  let done = 0;
+  for (let i = 0; i < stale.length; i += batch) {
+    await idle();
+    for (const r of stale.slice(i, i + batch)) {
+      try {
+        const next = { ...r };
+        next.thumbBlob = dataUrlToBlob(r.thumb);
+        next.fullBlob = dataUrlToBlob(r.full || r.thumb);
+        next.bytes = next.thumbBlob.size + next.fullBlob.size;
+        delete next.thumb;
+        delete next.full;
+        await run('readwrite', s => s.put(next));
+        done++;
+      } catch { /* left as it was; still readable, retried next boot */ }
+    }
+  }
+  return done;
 }
 
 // ------------------------------------------------------------------
@@ -275,10 +400,21 @@ export async function photoCount(owner) {
   return (await allPhotos(owner)).length;
 }
 
-/** Roughly how much room this account's photographs take. */
+/**
+ * How much room this account's photographs take.
+ *
+ * Exact for converted records, which carry the real sum of both Blob
+ * sizes; estimated from the base64 length for any not yet converted.
+ */
 export async function bytesUsed(owner) {
   const rows = await allPhotos(owner);
-  return rows.reduce((n, r) => n + (r.bytes || approxBytes(r.full || '')), 0);
+  return rows.reduce((n, r) => {
+    if (r.bytes) return n + r.bytes;
+    if (r.thumbBlob instanceof Blob) {
+      return n + r.thumbBlob.size + (r.fullBlob instanceof Blob ? r.fullBlob.size : 0);
+    }
+    return n + approxBytes(r.full || r.thumb || '');
+  }, 0);
 }
 
 /** Record that a copy now exists in the cloud. */

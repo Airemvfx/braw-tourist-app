@@ -17,7 +17,7 @@
 import { CLOUD, cloudConfigured, storeConfigured } from './cloud-config.js';
 import { auth, db, storage, currentSession, signedIn, onSessionChange } from './supabase.js';
 import { markUploaded, allPhotos } from './photos.js';
-import { dataUrlToBlob } from './vault.js';
+import { photoBlob } from './photos.js';
 
 const REV_KEY = 'braw_cloud_rev_v1';
 
@@ -208,7 +208,7 @@ export async function uploadPhoto(record) {
   if (!me) throw new Error('signed out');
 
   const path = `${me.id}/${record.id}.jpg`;
-  await storage.upload(path, dataUrlToBlob(record.full || record.thumb));
+  await storage.upload(path, photoBlob(record, 'full'));
 
   await db.insert('photos', {
     id: record.id,
