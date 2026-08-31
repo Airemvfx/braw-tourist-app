@@ -2,7 +2,8 @@
 // BRAW — app shell: auth, navigation, views, event wiring.
 // ============================================================
 
-import { POIS, POI_BY_ID, INTERESTS, LEVELS, XP_EVENTS, ACHIEVEMENTS, RIVALS, REGIONS, START_CITIES, TRIP_CENTRES } from './data.js';
+import { POIS, INTERESTS, LEVELS, XP_EVENTS, ACHIEVEMENTS, RIVALS, REGIONS, START_CITIES, TRIP_CENTRES } from './data.js';
+import { getPlace, isCurated } from './places.js';
 import {
   routeStats, optimiseOrder, equipmentFor, advisoriesFor,
   stampPreview, buildCustomTrip,
@@ -371,7 +372,7 @@ function seedDemoProgress() {
   const ids = all.slice(0, Math.max(0, Math.min(4, all.length - 1)));
   for (const id of ids) {
     trip.visited[id] = Date.now();
-    awardXP(user, POI_BY_ID[id].xp, 'act.visited', { poiId: id }, POI_BY_ID[id].icon);
+    awardXP(user, getPlace(id).xp, 'act.visited', { poiId: id }, getPlace(id).icon);
   }
   evaluateAchievements(user);
   evaluateStamps(user);
@@ -571,7 +572,7 @@ const loc = entry => entry[getLang()] || entry.en;
 function planSeason(id) {
   const sn = seasonalNow().find(x => x.id === id) || seasonalNext().find(x => x.id === id);
   if (!sn || !sn.pois.length) return;
-  const ids = sn.pois.filter(x => POI_BY_ID[x]);
+  const ids = sn.pois.filter(x => getPlace(x));
   if (!ids.length) return;
   planScope = { kind: 'national' };
   renderScopePicker();
@@ -722,7 +723,7 @@ function interestPills(keys) {
 function wildcardHTML(trip) {
   if (!trip.offerWildcards) return '';
   trip.wildcards = trip.wildcards || wildcardsFor(trip).map(p => p.id);
-  const picks = trip.wildcards.map(id => POI_BY_ID[id]).filter(Boolean);
+  const picks = trip.wildcards.map(id => getPlace(id)).filter(Boolean);
   if (!picks.length) return '';
 
   const names = (trip.interests || []).filter(k => INTERESTS[k]).map(k => interestLabel(k));
@@ -773,7 +774,7 @@ function renderDraft() {
   const trip = draftTrip;
   const box = $('#plan-result');
   box.hidden = false;
-  const stops = tripStopIds(trip).map((id, i) => ({ poi: POI_BY_ID[id], visited: false, order: i + 1 }));
+  const stops = tripStopIds(trip).map((id, i) => ({ poi: getPlace(id), visited: false, order: i + 1 }));
 
   box.innerHTML = `
     <div class="trip-sheet card">
@@ -863,7 +864,7 @@ function tripCardHTML(trip) {
   const done = !!trip.completedAt;
   const ids = tripStopIds(trip);
   const pick = firstImage(ids);
-  const icon = POI_BY_ID[ids[0]]?.icon || (done ? '🏁' : '🛤️');
+  const icon = getPlace(ids[0])?.icon || (done ? '🏁' : '🛤️');
   const meta = t('trips.card.meta', {
     days: trip.days.length, stops: pr.total,
     dist: formatDistance(trip), start: cityName(trip.start.name),
@@ -975,7 +976,7 @@ function renderTrips() {
  */
 function tripDeletionCost(trip) {
   const ids = tripStopIds(trip);
-  const xpOf = id => POI_BY_ID[id]?.xp || 0;
+  const xpOf = id => getPlace(id)?.xp || 0;
 
   const potential = ids.filter(id => !trip.visited[id]).reduce((n, id) => n + xpOf(id), 0)
     + (trip.completedAt ? 0 : XP_EVENTS.COMPLETE_TRIP);
@@ -1096,7 +1097,7 @@ const build = {
 };
 
 const bdStart = () => START_CITIES[build.startKey];
-const bdPois = () => build.ids.map(id => POI_BY_ID[id]).filter(Boolean);
+const bdPois = () => build.ids.map(id => getPlace(id)).filter(Boolean);
 const bdStats = () => routeStats(bdPois(), bdStart(), build.days);
 const bdDays = s => build.days || s.daysNeeded;
 
@@ -1220,7 +1221,7 @@ function renderBuildMap() {
 
 /** The tapped location, above the map, with the one action that matters. */
 function openBuilderPoi(poiId) {
-  const poi = POI_BY_ID[poiId];
+  const poi = getPlace(poiId);
   if (!poi) return;
   const on = build.ids.includes(poiId);
   const panel = $('#bd-panel');
@@ -1599,7 +1600,7 @@ function stopListHTML(trip, interactive) {
   return trip.days.map(d => {
     const rows = d.stops.map(id => {
       order++;
-      const poi = POI_BY_ID[id];
+      const poi = getPlace(id);
       const visited = !!trip.visited[id];
       return `
       <div class="sl-item ${visited ? 'is-visited' : ''}" data-poi="${id}">
@@ -1612,7 +1613,7 @@ function stopListHTML(trip, interactive) {
         <div class="sl-body" hidden>${poiBodyHTML(poi, trip, interactive)}</div>
       </div>`;
     }).join('');
-    const regions = [...new Set(d.stops.map(id => regionName(POI_BY_ID[id].region)))];
+    const regions = [...new Set(d.stops.map(id => regionName(getPlace(id).region)))];
     return `
     <section class="day-block">
       <header class="day-head"><span class="day-num">${t('trip.day', { n: d.day })}</span><span class="day-regions">${esc(regions.join(' → '))}</span></header>
@@ -1768,7 +1769,7 @@ let nessieTimer = null;
 
 function openPoiPanel(poiId, scope = document, trip = null, interactive = true) {
   trip = trip || user.trips.find(t2 => t2.id === openTripId);
-  const poi = POI_BY_ID[poiId];
+  const poi = getPlace(poiId);
   const panel = scope.querySelector('.poi-panel');
   if (!trip || !poi || !panel) return;
   panel.innerHTML = `
@@ -1819,7 +1820,7 @@ function renderGeoBar(trip) {
   const busy = state === GEO.ASKING;
 
   const problem = { [GEO.DENIED]: 'geo.denied', [GEO.UNAVAILABLE]: 'geo.unavailable', [GEO.FAILED]: 'geo.failed' }[state];
-  const stops = tripStopIds(trip).map(id => POI_BY_ID[id]).filter(Boolean);
+  const stops = tripStopIds(trip).map(id => getPlace(id)).filter(Boolean);
   const near = on ? nearestOf(stops) : null;
 
   host.innerHTML = `
@@ -1949,7 +1950,7 @@ function beginTracking() {
   startTracking({ onArrive: onGeoArrive });
   const trip = user.trips.find(t2 => t2.id === openTripId);
   if (trip) {
-    const stops = tripStopIds(trip).map(id => POI_BY_ID[id]).filter(Boolean);
+    const stops = tripStopIds(trip).map(id => getPlace(id)).filter(Boolean);
     watchStops(stops.filter(p => !trip.visited[p.id]));
     renderGeoBar(trip);
   }
@@ -1987,7 +1988,7 @@ function renderTripDetail() {
 
   const pr = tripProgress(trip);
   let order = 0;
-  const stops = tripStopIds(trip).map(id => ({ poi: POI_BY_ID[id], visited: !!trip.visited[id], order: ++order }));
+  const stops = tripStopIds(trip).map(id => ({ poi: getPlace(id), visited: !!trip.visited[id], order: ++order }));
   const next = stops.find(s => !s.visited);
 
   host.innerHTML = `
@@ -2082,7 +2083,7 @@ function wireMapMarkers(scope, trip = null, interactive = true) {
 }
 
 function toggleVisited(trip, poiId) {
-  const poi = POI_BY_ID[poiId];
+  const poi = getPlace(poiId);
   if (trip.visited[poiId]) {
     delete trip.visited[poiId];
     if (trip.completedAt) trip.completedAt = null;
@@ -2201,7 +2202,7 @@ async function hydrateStopThumbs(scope, trip = null) {
     // a broken frame in the middle of a list.
     img.addEventListener('error', () => {
       cell.classList.remove('has-shot');
-      cell.textContent = POI_BY_ID[poiId]?.icon || '';
+      cell.textContent = getPlace(poiId)?.icon || '';
     }, { once: true });
     img.src = url;
     cell.textContent = '';
@@ -2230,7 +2231,7 @@ async function hydratePhotos(scope, trip = null) {
  * print-resolution one is only decoded if the viewer is opened.
  */
 function attachThumb(slot, record) {
-  const poi = POI_BY_ID[record.poiId];
+  const poi = getPlace(record.poiId);
   const label = t('photo.alt', { name: poiName(poi) });
   slot.innerHTML = '';
   const fig = document.createElement('button');
@@ -2247,7 +2248,7 @@ function attachThumb(slot, record) {
 }
 
 function openPhoto(record) {
-  const poi = POI_BY_ID[record.poiId];
+  const poi = getPlace(record.poiId);
   // Its own scope, released by closePhoto. This is the print-resolution
   // copy — about a megabyte — so holding one per photograph anybody has
   // ever opened is the largest leak this store could produce.
@@ -2346,7 +2347,7 @@ function wirePhotos() {
       const record = await addPhoto(user.id, { tripId, poiId }, file);
       document.querySelectorAll(`[data-photo-slot="${poiId}"]`)
         .forEach(slot => attachThumb(slot, record));
-      toastInfo(t('photo.saved', { name: poiName(POI_BY_ID[poiId]) }), '📸');
+      toastInfo(t('photo.saved', { name: poiName(getPlace(poiId)) }), '📸');
       afterPhotoAdded();
     } catch (err) {
       // A full disk is the one failure worth naming: it is fixable, and
@@ -2406,7 +2407,7 @@ function markRead(id) {
 
 function lockHint(entry) {
   const u = entry.unlock || {};
-  if (u.visit) return t('library.hint.visit', { name: poiName(POI_BY_ID[u.visit]) });
+  if (u.visit) return t('library.hint.visit', { name: poiName(getPlace(u.visit)) });
   if (u.region) return t('library.hint.region', { name: regionName(u.region) });
   if (u.level) return t('library.hint.level', { n: u.level });
   return t('library.hint.egg');
@@ -2451,7 +2452,7 @@ function renderLibrary() {
         <h3 class="lore-title">${esc(loreTitle(e))}</h3>
         <p class="lore-body">${esc(loreBody(e))}</p>
         ${e.type === 'legend' ? `<p class="lore-note">${esc(t('library.legendNote'))}</p>` : ''}
-        ${e.poi ? `<button type="button" class="link-btn lore-goto" data-lore-poi="${e.poi}">${esc(poiName(POI_BY_ID[e.poi]))} →</button>` : ''}
+        ${e.poi ? `<button type="button" class="link-btn lore-goto" data-lore-poi="${e.poi}">${esc(poiName(getPlace(e.poi)))} →</button>` : ''}
       </article>`;
   }).join('');
 
@@ -2849,7 +2850,7 @@ function builderHTML() {
     }
     const grade = printGrade(p, product.printWidthMm);
     const dpi = printDpi(p, product.printWidthMm);
-    const poi = POI_BY_ID[p.poiId];
+    const poi = getPlace(p.poiId);
     return `<button type="button" class="cal-slot grade-${grade}" data-slot="${i}">
       <img src="${scopedUrl('store', photoBlob(p, 'thumb'))}" alt="">
       <span class="cs-month">${esc(label)}</span>
@@ -2948,7 +2949,7 @@ async function openSlotPicker(index) {
     </header>
     <div class="picker-grid">
       ${photos.map(p => {
-        const poi = POI_BY_ID[p.poiId];
+        const poi = getPlace(p.poiId);
         const grade = printGrade(p, storeProduct.printWidthMm);
         return `<button type="button" class="pick grade-${grade}" data-pick="${p.id}">
           <img src="${scopedUrl('store', photoBlob(p, 'thumb'))}" alt="">
@@ -3296,7 +3297,7 @@ function vaultCardHTML() {
 
 /** braw-01-edinburgh-castle.jpg — sorted by journey, readable in a folder. */
 function photoFileName(record, index) {
-  const poi = POI_BY_ID[record.poiId];
+  const poi = getPlace(record.poiId);
   const name = poi ? poiName(poi) : record.poiId;
   const clean = String(name).toLowerCase().normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')   // drop accents, keep the letters

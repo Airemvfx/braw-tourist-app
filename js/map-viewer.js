@@ -26,7 +26,7 @@
 
 import { project, unproject, onMap, MAP_SIZE } from './scotland-map.js';
 import { t, poiName, poiBlurb, regionName, poiTime } from './i18n.js';
-import { POI_BY_ID } from './data.js';
+import { getPlace } from './places.js';
 
 const { W, H } = MAP_SIZE;
 
@@ -273,7 +273,7 @@ function currentGoogleUrl() {
 // ------------------------------------------------------------------
 
 function showInfo(poiId) {
-  const poi = POI_BY_ID[poiId];
+  const poi = getPlace(poiId);
   const card = host.querySelector('.mv-info');
   if (!poi) { card.hidden = true; return; }
 

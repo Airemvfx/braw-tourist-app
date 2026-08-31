@@ -13,7 +13,7 @@
 // backup carries them only when asked for.
 // ============================================================
 
-import { POI_BY_ID } from './data.js';
+import { getPlace } from './places.js';
 import { poiName, poiBlurb, regionName, cityName } from './i18n.js';
 import { tripStopIds, tripTitle } from './planner.js';
 import { allPhotos, photoDataUrl } from './photos.js';
@@ -44,7 +44,7 @@ const slug = s => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^
  * sat-nav follows. Both, because different devices want different things.
  */
 export function tripToGPX(trip) {
-  const stops = tripStopIds(trip).map(id => POI_BY_ID[id]).filter(Boolean);
+  const stops = tripStopIds(trip).map(id => getPlace(id)).filter(Boolean);
   const when = new Date(trip.createdAt || Date.now()).toISOString();
 
   const wpts = stops.map((p, i) => `  <wpt lat="${p.lat}" lon="${p.lon}">
@@ -84,7 +84,7 @@ ${rtepts}
 
 /** GeoJSON: the same journey for anything that reads map data. */
 export function tripToGeoJSON(trip) {
-  const stops = tripStopIds(trip).map(id => POI_BY_ID[id]).filter(Boolean);
+  const stops = tripStopIds(trip).map(id => getPlace(id)).filter(Boolean);
   const line = [
     ...(trip.start ? [[trip.start.lon, trip.start.lat]] : []),
     ...stops.map(p => [p.lon, p.lat]),

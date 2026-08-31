@@ -9,7 +9,8 @@
 // the numbers on screen can be recomputed on every tap without cost.
 // ============================================================
 
-import { POI_BY_ID, INTERESTS, REGIONS, EQUIPMENT, ADVISORIES } from './data.js';
+import { INTERESTS, REGIONS, EQUIPMENT, ADVISORIES } from './data.js';
+import { getPlace } from './places.js';
 import { routeTotals, orderByTravel, leg } from './routing.js';
 
 // Hours of daylight-ish touring anyone sensibly does before dinner.
@@ -142,7 +143,7 @@ export function chunkDays(ids, days) {
  * — progress ring, GPS check-ins, XP, achievements and all.
  */
 export function buildCustomTrip({ ids, start, days }) {
-  const pois = ids.map(id => POI_BY_ID[id]).filter(Boolean);
+  const pois = ids.map(id => getPlace(id)).filter(Boolean);
   const stats = routeStats(pois, start, days);
   const dayBlocks = chunkDays(pois.map(p => p.id), days || stats.daysNeeded);
   const perDay = dayBlocks.length ? pois.length / dayBlocks.length : 0;

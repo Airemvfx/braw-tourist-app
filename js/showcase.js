@@ -11,7 +11,8 @@
 // permission — all of which a baked video would give up.
 // ============================================================
 
-import { POI_BY_ID, START_CITIES } from './data.js';
+import { START_CITIES } from './data.js';
+import { getPlace } from './places.js';
 import { renderMap } from './scotland-map.js';
 import { t } from './i18n.js';
 
@@ -40,7 +41,7 @@ const reduceMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)')
  *  route reads as a trip in flight rather than an empty plan. */
 export function renderShowcase(progress = 5) {
   const stops = ROUTE
-    .map((id, i) => ({ poi: POI_BY_ID[id], visited: i < progress, order: i + 1 }))
+    .map((id, i) => ({ poi: getPlace(id), visited: i < progress, order: i + 1 }))
     .filter(s => s.poi);
   return renderMap(stops, START_CITIES.edinburgh, null, { idSuffix: 'sc' });
 }
