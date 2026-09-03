@@ -31,6 +31,7 @@ your Playwright install differs.
 | `sweep` | every view renders in both themes with no page errors |
 | `dom` | the render layer: a quote cannot escape an attribute, `render()` refuses an unescaped string, and `list()` reuses elements rather than rebuilding them — which is the whole reason it exists, and invisible when it works |
 | `media` | image loading: an image 4000px down the page is not fetched until it is scrolled towards, a released object URL is genuinely revoked, and a 404 leaves a placeholder rather than a broken-image icon |
+| `gmap` | the Google map: with no key the hand-drawn one is still what you get, a key without consent is still not permission, and with both it mounts exactly one map however many map views you visit. When Google cannot be reached it falls back to the itinerary and says why. A guard fails the run if any request reaches Google at all |
 | `nav` | the phone menu and the leaderboard's fit at 320/390px: bottom-left button, every destination on screen at once, nothing under the button, toggles and closes; and the header bar returns on a desktop |
 
 `contrast` composites translucent layers before measuring. An earlier
@@ -63,3 +64,17 @@ overwriting a newer profile. All of those must fail.
 Run it after any change to the schema. The browser holds a public key,
 so row-level security and column privileges are the entire access model;
 they are easy to loosen by accident and the loosening is silent.
+
+
+## Google
+
+`gmap` never touches Google. `tests/fixtures/fake-google.js` is injected
+with `addInitScript` before the app boots, and `js/gmaps.js` opens with
+`if (window.google?.maps) return` — that one line is the whole seam. The
+fixture records every call, because what is worth asserting is the call
+budget rather than the wire: one `Map` per session however many maps
+somebody opens, and none of it at all on a Scottish trip.
+
+CI holds no API key and must never make a billable call. Every context in
+that suite watches its own requests and fails the run if one reaches
+`googleapis.com`. If you add a suite that touches a map, copy that guard.

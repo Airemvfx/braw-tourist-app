@@ -177,6 +177,27 @@ drawn, so the app works fully without them, but the request is still
 made. We intend to self-host these files, which removes the third party
 entirely. See "Known gaps".
 
+**Google Maps** *(only if you switch it on)*. BRAW can show a map of
+anywhere in the world, drawn by Google. It is **off until you turn it
+on**, on your profile page, and while it is off no request is made and
+nothing about you reaches Google from the map.
+
+Turn it on and, whenever a map opens, your browser fetches Google's
+script and its map tiles. That discloses to Google your IP address,
+roughly the area you are looking at, and the ordinary metadata any web
+request carries. Google is a separate controller for that data under
+its own terms, not our processor: we cannot see it, limit it or delete
+it on your behalf. Their handling is at policies.google.com/privacy.
+
+Two things follow that are worth stating plainly:
+
+- **We cannot self-host this the way we intend to with the fonts.**
+  Google's terms forbid storing or re-serving their map tiles, so the
+  third party is permanent for as long as the worldwide map is on.
+- **Scotland does not need it.** The 182 Scottish locations are ours,
+  with their own coordinates and their own map, and they work with the
+  switch off and with no signal at all.
+
 **Supabase** *(only with a backend)*. Accounts, the profile copy and
 uploaded photographs are held on infrastructure operated by Supabase,
 acting as our processor under a data processing agreement. The project
@@ -187,7 +208,7 @@ supabase.com/privacy.
 **The shop** *(only if you order)*. Whichever fulfilment partner is
 configured. To be named here before the shop opens.
 
-Beyond that: no CDNs, no map tile provider, no error tracker, no social
+Beyond that: no error tracker, no advertising, no social
 embeds. The map is drawn from data compiled into the app itself, which is
 why it works offline.
 
@@ -262,6 +283,16 @@ Written down rather than glossed over, so they get fixed.
 
 1. **Google Fonts is still a third-party request.** Self-hosting the
    three families removes it. Blocked only on downloading the files.
+1b. **The worldwide map cannot be made first-party.** Unlike the fonts,
+   Google's terms forbid storing or re-serving their tiles, so switching
+   the map on means a permanent third party. The mitigation is that it
+   is off by default and Scotland never needs it — not that it can be
+   removed later.
+1c. **There is no map without a connection.** The same clause that
+   forbids re-serving tiles forbids caching them, so the worldwide map
+   cannot be made to work offline. Where there is no signal the app
+   shows the itinerary as a list instead, and Scottish stops keep their
+   names, descriptions and coordinates because those are ours.
 2. **Local password hashing is weak** (unsalted SHA-256). Acceptable
    only as a shared-device convenience, and it is no longer used for
    real accounts once a backend is configured. It still guards local

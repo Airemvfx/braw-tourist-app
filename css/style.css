@@ -3620,3 +3620,91 @@ body.mapfs-open { overflow: hidden; }
   .ph-slide figcaption { padding-left: 1.4rem; }
   .ph-dots { padding-right: 1.4rem; }
 }
+
+/* ============================================================
+   MAP FRAME — one place for a map, whichever can be drawn
+   ============================================================
+   The frame is whatever fills .map-stage: the hand-drawn SVG, a Google
+   map, or the itinerary as a numbered list. The list is not an error
+   page. It is what a map is with no signal, no key, no consent, or a
+   stop nowhere near Scotland, and it is useful enough to be the thing
+   that shows while a map is still loading. */
+
+.map-frame { position: absolute; inset: 0; }
+.map-frame > svg { width: 100%; height: 100%; display: block; }
+
+.map-slot { position: absolute; inset: 0; }
+.gm-canvas { width: 100%; height: 100%; }
+
+/* The itinerary. Scrolls on its own so a fortnight does not push the
+   page around, and sits on the same sea colour the map does so the
+   switch between them is not a flash of a different surface. */
+.map-fallback {
+  position: absolute; inset: 0;
+  overflow-y: auto; overscroll-behavior: contain;
+  padding: var(--space-4);
+  display: flex; flex-direction: column; gap: var(--space-2);
+}
+.mf-start {
+  margin: 0; font-family: var(--font-mono); font-size: 0.72rem;
+  letter-spacing: 0.08em; color: var(--text-faint); text-transform: uppercase;
+}
+.mf-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
+.mf-stop {
+  display: grid; grid-template-columns: 26px 1fr; gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+  background: var(--inset-1); border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.mf-n {
+  width: 26px; height: 26px; border-radius: 50%;
+  display: grid; place-items: center;
+  font-family: var(--font-mono); font-size: 0.76rem; font-weight: 600;
+  background: var(--surface-2); color: var(--amber-ink);
+  border: 1px solid var(--border-strong);
+}
+.mf-stop.is-visited .mf-n { background: var(--gold); color: var(--on-amber); border-color: #e8c060; }
+.mf-stop.is-visited .mf-name { color: var(--text-dim); }
+.mf-name { font-size: 0.92rem; min-width: 0; }
+.mf-note {
+  position: absolute; left: 0; right: 0; bottom: 0; margin: 0;
+  padding: var(--space-2) var(--space-4);
+  font-size: 0.78rem; color: var(--text-dim);
+  background: var(--inset-2); border-top: 1px solid var(--border);
+}
+
+/* Our pin, on their tiles. The numbers and the amber are the part
+   somebody recognises, so they do not change with the basemap. */
+.gm-pin {
+  width: 26px; height: 26px; border-radius: 50%;
+  display: grid; place-items: center;
+  font-family: var(--font-mono); font-size: 0.76rem; font-weight: 700;
+  background: var(--amber); color: var(--on-amber);
+  border: 2px solid #fff;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.45);
+  cursor: pointer;
+}
+.gm-pin.is-visited { background: var(--gold); }
+
+/* ---- the worldwide-map switch ---- */
+.map-consent-card { padding: var(--space-4); }
+.map-consent-card h3 { margin: 0 0 var(--space-2); }
+.mc-body { color: var(--text-dim); font-size: 0.86rem; margin: 0 0 var(--space-3); }
+.mc-state {
+  font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.04em;
+  padding: var(--space-2) var(--space-3); border-radius: 8px;
+  background: var(--inset-1); border: 1px solid var(--border);
+  color: var(--text-dim); margin-bottom: var(--space-3);
+}
+.mc-state.is-on { color: var(--amber-ink); border-color: var(--border-strong); }
+
+/* The map tools float over the top-right of the stage. Against a map
+   that is fine; against a list of names it sits on the words, so the
+   list keeps clear of them. */
+.map-fallback { padding-right: calc(var(--space-4) + 3.2rem); }
+
+/* Full screen means "pan and zoom this SVG", so it has nothing to open
+   when the frame fell back to a list. Hidden rather than disabled: a
+   button that explains why it does nothing is worse than no button. */
+.map-frame[data-mode="list"] ~ .map-tools [data-map-full] { display: none; }

@@ -4,6 +4,7 @@
 
 import { POIS, INTERESTS, LEVELS, XP_EVENTS, ACHIEVEMENTS, RIVALS, REGIONS, START_CITIES, TRIP_CENTRES } from './data.js';
 import { getPlace, isCurated } from './places.js';
+import { googleKeyPresent, googleConsented, setGoogleConsent } from './google-config.js';
 import {
   routeStats, optimiseOrder, equipmentFor, advisoriesFor,
   stampPreview, buildCustomTrip,
@@ -22,12 +23,14 @@ import {
   wildcardsFor, addStops, poisInScope,
 } from './planner.js';
 import {
-  renderMap, mapKeyHTML, updateUserDot, mountTerrain,
+  mapFrameHTML, mountMap, chooseRenderer, focusMapOn, warmGoogle,
+  mapKeyHTML, updateUserDot, mountTerrain,
   project, unproject, onMap, kmFromScotland, flourishTo, MAP_SIZE,
-} from './scotland-map.js';
-import {
   openMapViewer, googleMapsUrl, googlePlaceUrl, renderedMapWidth, focusViewerOn,
-} from './map-viewer.js';
+} from './mapframe.js';
+// The SVG renderer directly, for the full-screen viewer: it pans and
+// zooms an SVG, so it only has anything to show in Scotland mode.
+import { renderMap } from './scotland-map.js';
 import { leg as travelLeg, ferriesFor, ferryInfo } from './routing.js';
 import {
   downloadTripGPX, downloadTripGeoJSON, downloadBackup,
@@ -800,7 +803,7 @@ function renderDraft() {
         </div>
       </div>
       <div class="poi-panel" hidden></div>
-      <div class="map-stage">${renderMap(stops, trip.start)}${mapToolsHTML('draft')}</div>
+      <div class="map-stage">${mapFrameHTML('draft', { stops, start: trip.start })}${mapToolsHTML('draft')}</div>
       ${mapKeyHTML()}
       ${wildcardHTML(trip)}
       <div class="stop-list">${stopListHTML(trip, false)}</div>
@@ -815,6 +818,10 @@ function renderDraft() {
   // it before you have saved anything.
   hydrateStopThumbs(box, trip);
   wireMapMarkers(box, trip, false);
+  // Fills the frame when Google is the renderer; a no-op for the SVG
+  // and the itinerary list, which are finished the moment the markup is
+  // in the document.
+  mountMap(box, 'draft', { stops, start: trip.start, onStop: id => openPoiPanel(id, box, trip, false) });
   wireStopList(box, trip);
   wireMapTools(box, 'draft', {
     render: () => renderMap(stops, trip.start, locationState().position, { idSuffix: 'fs' }),
@@ -2031,7 +2038,7 @@ function renderTripDetail() {
     <!-- Selected pin, above the map so the map never scrolls away -->
     <div class="poi-panel" id="poi-panel" hidden></div>
 
-    <div class="map-stage">${renderMap(stops, trip.start)}${mapToolsHTML('trip')}</div>
+    <div class="map-stage">${mapFrameHTML('trip', { stops, start: trip.start })}${mapToolsHTML('trip')}</div>
     ${mapKeyHTML()}
 
     <div class="geo-bar" id="geo-bar"></div>
@@ -2055,6 +2062,11 @@ function renderTripDetail() {
     toastInfo(t('data.exported', { name: 'GeoJSON' }), '🗺️');
   });
   wireMapMarkers(host);
+  mountMap(host, 'trip', {
+    stops, start: trip.start,
+    userPos: locationState().position,
+    onStop: id => openPoiPanel(id, host, trip, true),
+  });
   wireMapTools(host, 'trip', {
     // Re-rendered rather than cloned: a clone would carry duplicate
     // gradient and filter ids into the document, and every url(#...)
@@ -3138,6 +3150,7 @@ function renderProfile() {
       <div class="media-grid is-tight" id="profile-photos"></div>
     </section>
 
+    ${mapCardHTML()}
     ${accountCardHTML()}
     ${vaultCardHTML()}
 
@@ -3166,6 +3179,7 @@ function renderProfile() {
   $('#profile-logout').addEventListener('click', () => $('#logout-btn').click());
   wireDataControls();
   renderProfilePhotos();
+  wireMapConsent();
   wireVaultControls();
   wireAccountControls();
 
@@ -3248,6 +3262,46 @@ function countUp(nodes) {
 // browsing data", and telling people their photographs are safe when
 // one wrong tap would delete them would be a lie with a cost.
 // ============================================================
+
+/**
+ * The worldwide-map switch.
+ *
+ * Shown only when a key exists — a switch that cannot do anything is
+ * worse than no switch. Off by default, and while it is off the claim
+ * on the sign-in screen is literally true: nothing goes to Google,
+ * because nothing is asked of Google.
+ *
+ * The copy names what Google receives rather than gesturing at it. The
+ * app is built for Polish users among others, so this is the prior
+ * consent a data protection officer would look for, not a nicety.
+ */
+function mapCardHTML() {
+  if (!googleKeyPresent()) return '';
+  const on = googleConsented();
+  return `<section class="card map-consent-card" id="map-consent">
+    <h3>${t('google.consent.title')}</h3>
+    <p class="mc-body">${esc(t('google.consent.body'))}</p>
+    <div class="mc-state ${on ? 'is-on' : ''}">${esc(t(on ? 'google.consent.state.on' : 'google.consent.state.off'))}</div>
+    <div class="data-actions">
+      <button class="btn ${on ? 'btn-ghost' : 'btn-primary'} btn-sm" id="map-consent-toggle">
+        ${esc(t(on ? 'google.consent.off' : 'google.consent.on'))}
+      </button>
+    </div>
+  </section>`;
+}
+
+function wireMapConsent() {
+  const btn = $('#map-consent-toggle');
+  if (!btn) return;
+  btn.addEventListener('click', () => {
+    const next = !googleConsented();
+    setGoogleConsent(next);
+    // Everything that draws a map asks the gate afresh, so re-rendering
+    // the view is all that is needed to switch renderer.
+    renderProfile();
+    toastInfo(t(next ? 'google.consent.state.on' : 'google.consent.state.off'), next ? '🌍' : '🏴󠁧󠁢󠁳󠁣󠁴󠁿');
+  });
+}
 
 function vaultCardHTML() {
   if (!health) return `<section class="card vault-card" id="vault-card"><h3>${t('vault.title')}</h3><p class="muted">${t('vault.checking')}</p></section>`;

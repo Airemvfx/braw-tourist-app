@@ -66,7 +66,7 @@ const EN = {
   'auth.stat.places': 'locations',
   'auth.stat.interests': 'interests',
   'auth.stat.badges': 'achievements',
-  'auth.foot': 'Prototype · Scotland only · GPS &amp; geofencing included · No data leaves your device',
+  'auth.foot': 'Prototype · Scotland, offline · GPS &amp; geofencing · The world, with Google, if you ask',
 
   // ---- auth: form ----
   'auth.welcome': 'Welcome back',
@@ -82,7 +82,7 @@ const EN = {
   'auth.submit.registerArrow': 'Create account →',
   'auth.or': 'or',
   'auth.demo': 'Try the demo account',
-  'auth.note': 'Accounts are stored locally in your browser. No data leaves this device.',
+  'auth.note': 'Accounts and photographs are stored in this browser.',
 
   // ---- auth: errors (store.js) ----
   'auth.err.nameFormat': 'Name must be 3–24 letters, numbers or _ . -',
@@ -513,6 +513,13 @@ const EN = {
   // ---- map ----
   'map.aria': 'Map of Scotland with roadtrip stops',
   'map.fullscreen': 'Full screen map',
+  'map.needsConnection': 'The map needs a connection. Here is the route.',
+  'google.consent.title': 'Look further afield?',
+  'google.consent.body': 'Beyond Scotland, BRAW borrows Google\u2019s map of the world. Turn this on and, when you open a map, your device asks Google for it \u2014 which tells Google your IP address and roughly where you are looking. Scotland works either way, and works with no signal.',
+  'google.consent.on': 'Use the world map',
+  'google.consent.off': 'Scotland only',
+  'google.consent.state.on': 'The world map is on. Your device talks to Google when a map opens.',
+  'google.consent.state.off': 'Scotland only. Nothing leaves this device.',
   'map.fullscreenHint': 'Drag to move · pinch or scroll to zoom · tap a pin for details',
   'map.google': 'Open this view in Google Maps',
   'map.gps': 'Show my location',
@@ -789,7 +796,7 @@ const PL = {
   'auth.stat.places': 'miejsc',
   'auth.stat.interests': 'zainteresowań',
   'auth.stat.badges': 'osiągnięć',
-  'auth.foot': 'Prototyp · Tylko Szkocja · GPS i geofencing w zestawie · Żadne dane nie opuszczają Twojego urządzenia',
+  'auth.foot': 'Prototyp · Szkocja, bez zasięgu · GPS i geofencing · Świat, z Google, jeśli zechcesz',
 
   // ---- auth: form ----
   'auth.welcome': 'Witaj ponownie',
@@ -805,7 +812,7 @@ const PL = {
   'auth.submit.registerArrow': 'Załóż konto →',
   'auth.or': 'lub',
   'auth.demo': 'Wypróbuj konto demo',
-  'auth.note': 'Konta są przechowywane lokalnie w Twojej przeglądarce. Żadne dane nie opuszczają tego urządzenia.',
+  'auth.note': 'Konta i zdjęcia są przechowywane w tej przeglądarce.',
 
   // ---- auth: errors ----
   'auth.err.nameFormat': 'Nazwa musi mieć 3–24 znaki: litery, cyfry lub _ . -',
@@ -1234,6 +1241,13 @@ const PL = {
   // ---- map ----
   'map.aria': 'Mapa Szkocji z przystankami wyprawy',
   'map.fullscreen': 'Mapa na pełnym ekranie',
+  'map.needsConnection': 'Mapa potrzebuje połączenia. Oto trasa.',
+  'google.consent.title': 'Chcesz sięgnąć dalej?',
+  'google.consent.body': 'Poza Szkocją BRAW korzysta z mapy świata Google. Po włączeniu tej opcji, gdy otworzysz mapę, Twoje urządzenie poprosi o nią Google \u2014 co przekaże Google Twój adres IP i mniej więcej to, gdzie patrzysz. Szkocja działa tak czy inaczej, również bez zasięgu.',
+  'google.consent.on': 'Używaj mapy świata',
+  'google.consent.off': 'Tylko Szkocja',
+  'google.consent.state.on': 'Mapa świata jest włączona. Urządzenie łączy się z Google przy otwieraniu mapy.',
+  'google.consent.state.off': 'Tylko Szkocja. Nic nie opuszcza tego urządzenia.',
   'map.fullscreenHint': 'Przeciągnij, aby przesunąć · szczypnij lub przewiń, aby przybliżyć · dotknij pinezki po szczegóły',
   'map.google': 'Otwórz ten widok w Mapach Google',
   'map.gps': 'Pokaż moją lokalizację',
